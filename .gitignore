@@ -1,0 +1,79 @@
+# Ignore all text files except requirements.txt
+*.txt
+!requirements.txt
+
+# Ignore all word docs
+*.docx
+
+# Dependencies
+/node_modules
+/.pnp
+.pnp.js
+venv/
+__pycache__/
+*.py[cod]
+
+# Testing
+/coverage
+.pytest_cache/
+
+# Production build
+/build
+/dist
+/.next/
+/out/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Database
+*.db
+*.sqlite
+
+.vercel
+
+# Supabase
+.supabase/
+
+# Backend related
+backend/venv
+backend/venv/*
+backend/.venv
+backend/.venv/*
+
+# Frontend related
+frontend/node_modules
+frontend/.next
+frontend/.vercel
+frontend/build
+frontend/dist
+frontend/out
+frontend/.env*
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/.pnp*
+frontend/.cache
+
+# .venv
+.venv
+.venv/*
