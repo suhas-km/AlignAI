@@ -81,3 +81,6 @@ frontend/.cache
 
 # all .logs
 *.log
+
+# all keys pem files
+*.pem
