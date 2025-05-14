@@ -70,3 +70,14 @@ python-dotenv>=0.19.0
 python-multipart>=0.0.5
 tiktoken>=0.1.0
 backoff
+
+torch>=1.13.0
+transformers>=4.26.0
+sklearn>=0.0
+scikit-learn>=1.0.2
+numpy>=1.23.0
+tqdm>=4.64.1
+fastapi>=0.95.0
+uvicorn>=0.21.0
+onnx>=1.13.0
+onnxruntime>=1.14.0

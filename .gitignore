@@ -84,3 +84,25 @@ frontend/.cache
 
 # all keys pem files
 *.pem
+
+# Model-Training/policy-detection/policy-model-weights
+Model-Training/policy-detection/policy-model-weights/*
+Model-Training/policy-detection/policy-model-weights/checkpoints
+Model-Training/policy-detection/policy-model-weights/final_model
+# logs
+Model-Training/policy-detection/policy-model-weights/logs
+Model-Training/policy-detection/policy-model-weights/logs/*
+
+# dataset
+Model-Training/policy-detection/data
+Model-Training/policy-detection/data/*
+Model-Training/policy-detection/data/train.jsonl
+Model-Training/policy-detection/data/dev.jsonl
+Model-Training/policy-detection/data/test.jsonl
+
+# Model-Training/bias-detection/data
+Model-Training/bias-detection/data
+Model-Training/bias-detection/data/*
+Model-Training/bias-detection/data/train.jsonl
+Model-Training/bias-detection/data/dev.jsonl
+Model-Training/bias-detection/data/test.jsonl
