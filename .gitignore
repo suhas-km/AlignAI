@@ -109,5 +109,45 @@ Model-Training/bias-detection/data/test.jsonl
 
 
 # Model-Training/bias-detection/models
-Model-Training/bias-detection/bias_model_weights    
-Model-Training/bias-detection/bias_model_weights/*
+# Model files (exclude large binary files but keep configs)
+
+# Bias detection model files
+Model-Training/bias-detection/bias_model_weights/**/*.bin
+Model-Training/bias-detection/bias_model_weights/**/*.h5
+Model-Training/bias-detection/bias_model_weights/**/*.pt
+Model-Training/bias-detection/bias_model_weights/**/*.pkl
+
+# PII detection model files
+Model-Training/pII-detection/models/**/*.bin
+Model-Training/pII-detection/models/**/*.h5
+Model-Training/pII-detection/models/**/*.pt
+Model-Training/pII-detection/models/**/*.pkl
+Model-Training/pII-detection/models/pii_model_weights/**
+
+# Policy detection model files
+Model-Training/policy-detection/models/**/*.bin
+Model-Training/policy-detection/models/**/*.h5
+Model-Training/policy-detection/models/**/*.pt
+Model-Training/policy-detection/models/**/*.pkl
+Model-Training/policy-detection/policy_model_weights/**
+
+# Keep config files and tokenizer files
+!Model-Training/**/config.json
+!Model-Training/**/special_tokens_map.json
+!Model-Training/**/tokenizer_config.json
+!Model-Training/**/vocab.txt
+
+# Model-Training/pII-detection/data
+Model-Training/pII-detection/data
+Model-Training/pII-detection/data/*
+Model-Training/pII-detection/data/train.jsonl
+Model-Training/pII-detection/data/dev.jsonl
+Model-Training/pII-detection/data/test.jsonl
+
+# /Users/suhaskm/Desktop/EU AI Act/AlignAI/Model-Training/pII-detection/models/pii_detection/checkpoint-1000/config.json
+Model-Training/pII-detection/models/pii_detection/checkpoint-1000/config.json
+# Model-Training/pII-detection/models/pii_detection/checkpoint-1000
+
+
+# Model-Training/pII-detection/models/pii_detection/checkpoint-1130/config.json
+Model-Training/pII-detection/models/pii_detection/checkpoint-1130/config.json

@@ -5,19 +5,34 @@ import json
 import os
 from pathlib import Path
 
+# Import ML-based implementation
+from .ml_pii_detector import MLPIIDetector
+
 logger = logging.getLogger(__name__)
 
 class PIIDetectionEngine:
     """Engine for detecting personally identifiable information (PII) in text."""
     
-    def __init__(self, rules_file: str = None):
+    def __init__(self, rules_file: str = None, use_ml: bool = True, model_dir: str = None):
         """Initialize PII detection engine.
         
         Args:
             rules_file: Path to JSON file containing PII detection rules.
                        If None, uses default rules.
+            use_ml: Whether to use ML-based detection when available.
+            model_dir: Directory containing ML model files.
         """
         self.rules = self._load_rules(rules_file)
+        self.ml_detector = None
+        
+        # Initialize ML-based detector if requested
+        if use_ml:
+            try:
+                self.ml_detector = MLPIIDetector(model_dir)
+                logger.info("ML-based PII detector initialized successfully")
+            except Exception as e:
+                logger.warning(f"Failed to initialize ML-based PII detector: {str(e)}. Falling back to rule-based detection.")
+                self.ml_detector = None
     
     def _load_rules(self, rules_file: str = None) -> Dict[str, Any]:
         """Load PII detection rules from file.
@@ -103,6 +118,23 @@ class PIIDetectionEngine:
         Returns:
             List of dictionaries containing PII detection results
         """
+        # Try ML-based detection first if available
+        if self.ml_detector is not None:
+            try:
+                # Use the ML model to detect PII
+                ml_entities = self.ml_detector.detect_pii(text)
+                
+                # If PII is detected, use ML results
+                if ml_entities:
+                    logger.info(f"ML-based PII detector found {len(ml_entities)} PII entities")
+                    return ml_entities
+                
+                # If no PII detected with ML, fall back to rule-based
+                logger.info("ML-based PII detector found no issues, falling back to rule-based detection")
+            except Exception as e:
+                logger.error(f"Error in ML-based PII detection: {str(e)}. Falling back to rule-based detection.")
+        
+        # Rule-based detection (fallback)
         results = []
         
         try:
@@ -140,7 +172,7 @@ class PIIDetectionEngine:
             
             return results
         except Exception as e:
-            logger.error(f"Error in PII detection: {str(e)}")
+            logger.error(f"Error in rule-based PII detection: {str(e)}")
             return []
     
     def get_pii_types(self) -> List[str]:

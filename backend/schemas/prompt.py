@@ -39,6 +39,7 @@ class PromptAnalysisResponse(BaseModel):
     token_risks: List[TokenRisk]
     policy_matches: List[PolicyMatch]
     overall_risk: OverallRisk
+    recommendations: List[str] = Field(default_factory=list)
 
 class PromptLogCreate(BaseModel):
     """Schema for logging a prompt analysis."""
