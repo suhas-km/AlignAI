@@ -5,19 +5,34 @@ import json
 import os
 from pathlib import Path
 
+# Import ML-based implementation
+from .ml_bias_detector import MLBiasDetector
+
 logger = logging.getLogger(__name__)
 
 class BiasDetectionEngine:
     """Engine for detecting various types of bias in text."""
     
-    def __init__(self, rules_file: str = None):
+    def __init__(self, rules_file: str = None, use_ml: bool = True, model_dir: str = None):
         """Initialize bias detection engine.
         
         Args:
             rules_file: Path to JSON file containing bias detection rules.
                        If None, uses default rules.
+            use_ml: Whether to use ML-based detection when available.
+            model_dir: Directory containing ML model files.
         """
         self.rules = self._load_rules(rules_file)
+        self.ml_detector = None
+        
+        # Initialize ML-based detector if requested
+        if use_ml:
+            try:
+                self.ml_detector = MLBiasDetector(model_dir)
+                logger.info("ML-based bias detector initialized successfully")
+            except Exception as e:
+                logger.warning(f"Failed to initialize ML-based bias detector: {str(e)}. Falling back to rule-based detection.")
+                self.ml_detector = None
     
     def _load_rules(self, rules_file: str = None) -> Dict[str, Any]:
         """Load bias detection rules from file.
@@ -87,6 +102,26 @@ class BiasDetectionEngine:
         Returns:
             List of dictionaries containing bias detection results
         """
+        # Try ML-based detection first if available
+        if self.ml_detector is not None:
+            try:
+                # Get comprehensive analysis from ML model
+                analysis_result = self.ml_detector.analyze_text(text)
+                
+                # If bias is detected, use ML results
+                if analysis_result["contains_bias"]:
+                    # Format results for API response
+                    ml_results = self.ml_detector.format_for_api(analysis_result)
+                    if ml_results:
+                        logger.info(f"ML-based bias detector found {len(ml_results)} bias issues")
+                        return ml_results
+                    
+                # If no bias detected with ML or empty results, fall back to rule-based
+                logger.info("ML-based bias detector found no issues, falling back to rule-based detection")
+            except Exception as e:
+                logger.error(f"Error in ML-based bias detection: {str(e)}. Falling back to rule-based detection.")
+        
+        # Rule-based detection (fallback)
         results = []
         
         try:
@@ -125,7 +160,7 @@ class BiasDetectionEngine:
             
             return results
         except Exception as e:
-            logger.error(f"Error in bias detection: {str(e)}")
+            logger.error(f"Error in rule-based bias detection: {str(e)}")
             return []
     
     def get_bias_types(self) -> List[str]:

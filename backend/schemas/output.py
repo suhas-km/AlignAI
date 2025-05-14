@@ -22,6 +22,7 @@ class OutputAnalysisResponse(BaseModel):
     token_risks: List[TokenRisk]
     policy_matches: List[PolicyMatch]
     overall_risk: OverallRisk
+    recommendations: List[str] = Field(default_factory=list)
 
 class OutputLogCreate(BaseModel):
     """Schema for logging an LLM output analysis."""
