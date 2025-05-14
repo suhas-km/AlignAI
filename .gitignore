@@ -106,3 +106,8 @@ Model-Training/bias-detection/data/*
 Model-Training/bias-detection/data/train.jsonl
 Model-Training/bias-detection/data/dev.jsonl
 Model-Training/bias-detection/data/test.jsonl
+
+
+# Model-Training/bias-detection/models
+Model-Training/bias-detection/bias_model_weights    
+Model-Training/bias-detection/bias_model_weights/*
