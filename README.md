@@ -1,29 +1,62 @@
-# AlignAI
+# AlignAI: AI Alignment & Compliance Analysis
 
-AlignAI is an AI alignment and ethical guardrail app ensuring responsible, transparent, and safe interactions with AI. Built to help organizations comply with the EU AI Act, AlignAI provides real-time analysis of AI prompts and outputs, identifying potential risks related to bias, PII exposure, and regulatory violations.
+![Landing Page](images/landing_page.png)
 
-## Features
+AlignAI is a specialized tool designed to help developers and organizations evaluate AI-generated content against key ethical and regulatory standards. By analyzing text for potential issues across multiple dimensions, AlignAI provides actionable insights to improve AI system safety and compliance.
 
-- **Real-time Prompt Analysis**: Token-level analysis of prompts with visual heatmap highlighting potential compliance issues
-- **Policy-to-Prompt Semantic Matching**: Maps input text against relevant EU AI Act regulations using vector similarity
-- **Bias Detection**: Identifies potentially biased language in prompts and AI-generated content
-- **PII Detection**: Flags personally identifiable information to prevent data leakage
-- **Compliance Dashboard**: Visualizes compliance trends and risk factors across your organization
-- **Detailed Reports**: Generates audit-ready compliance reports for regulatory purposes
-- **Public Sandbox**: Demonstrates AlignAI's capabilities with sub-200ms analysis response time
+![Core Features](images/core.png)
 
-## Architecture
+## Core Capabilities
 
-AlignAI uses a modern, serverless-first architecture:
+![Analysis Interface](images/landing_page2.png)
 
-- **Frontend**: Next.js with App Router deployed on Vercel Edge
-- **Backend**: FastAPI with WebSocket support for real-time analysis
-- **Database**: Neon PostgreSQL with pgvector for semantic search
-- **Authentication**: Supabase Auth for user and organization management
-- **AI Components**:
-  - LangChain Guardrails for compliance orchestration
-  - Sentence transformer models for text embeddings
-  - Specialized PII and bias detection models
+- **Multi-Dimensional Analysis**: Comprehensive examination of prompts across three critical dimensions: bias detection, PII identification, and policy compliance
+- **Risk Assessment**: Dynamic risk scoring system that quantifies concerns with confidence levels to prioritize remediation efforts
+- **Policy Compliance Verification**: Mapping of input text against relevant EU AI Act regulations with specific article references
+- **Visual Risk Indicators**: Color-coded indicators and percentage scores to quickly identify areas of concern
+- **Detailed Explanations**: Context-specific explanations of detected issues to facilitate understanding and correction
+
+- **Multi-Dimensional Analysis**: Comprehensive examination of prompts across three critical dimensions: bias detection, PII identification, and policy compliance
+- **Risk Assessment**: Dynamic risk scoring system that quantifies concerns with confidence levels to prioritize remediation efforts
+- **Policy Compliance Verification**: Mapping of input text against relevant EU AI Act regulations with specific article references
+- **Visual Risk Indicators**: Color-coded indicators and percentage scores to quickly identify areas of concern
+- **Detailed Explanations**: Context-specific explanations of detected issues to facilitate understanding and correction
+
+## Model Training & Alignment Approach
+
+### Bias Detection Model
+
+The bias detection model was fine-tuned on a carefully curated dataset containing:
+- Balanced examples of biased and unbiased text across multiple domains and contexts
+- Annotations for various bias types (gender, racial, age, socioeconomic, etc.)
+- Confidence scoring to reflect the certainty of bias detection
+
+Training approach:
+- Base model: RoBERTa architecture with classification head
+- Fine-tuning method: Supervised learning with bias/non-bias labels
+- Validation method: Cross-validation with human review of edge cases
+
+### PII Detection System
+
+Built using a hybrid approach combining:
+- Pattern matching with regular expressions for structured PII (emails, phone numbers, etc.)
+- Named entity recognition for identifying names, locations, and organizations
+- Contextual analysis to reduce false positives
+
+Training data includes diverse examples of personal information formatted in various ways, with special attention to indirect identifiers that could lead to re-identification.
+
+### Policy Compliance Engine
+
+- Trained on the full text of the EU AI Act, broken down into semantic units
+- Vectorized using sentence transformers to enable semantic similarity matching
+- Includes mechanisms to map detected issues to specific articles and clauses
+
+## Technical Architecture
+
+- **Frontend**: Next.js with React for a responsive, modern user interface
+- **Backend**: FastAPI for efficient, type-safe API endpoints
+- **Model Deployment**: Optimized inference pipeline for rapid analysis
+- **Inter-component Communication**: JSON-based API for flexibility and extensibility
 
 ## Getting Started
 
@@ -31,70 +64,75 @@ AlignAI uses a modern, serverless-first architecture:
 
 - Node.js 18+ and npm
 - Python 3.9+
-- Vercel account (for deployment)
-- Neon PostgreSQL database with pgvector extension
-- Supabase project for authentication
 
 ### Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/alignai.git
+git clone https://github.com/your-username/alignai.git
 cd alignai
 
-# Install dependencies
-npm install            # Root monorepo dependencies
-cd frontend && npm install  # Frontend dependencies
-cd ../backend && pip install -r requirements.txt  # Backend dependencies
+# Install frontend dependencies
+cd frontend && npm install
+
+# Install backend dependencies
+cd ../backend && pip install -r requirements.txt
 ```
 
-### Environment Setup
-
-Copy the example environment files and fill in your specific values:
+### Running the Application
 
 ```bash
-cp .env.example .env
-```
-
-### Running Locally
-
-```bash
-# Start the development server
+# Start the frontend (from the frontend directory)
 npm run dev
+
+# Start the backend (from the backend directory)
+python -m uvicorn main:app --reload --port 8000
 ```
 
-Visit `http://localhost:3000` to access the application.
+Visit `http://localhost:3000` to access the frontend application.
 
-## Implementation Roadmap
+## Project Structure
 
-AlignAI is being developed in phases:
+AlignAI is organized into several key components:
 
-1. **Foundation & Regulatory Knowledge Ingestion**
-   - Core infrastructure setup
-   - EU AI Act text processing and vectorization
-   - Initial policy library UI
+### Backend
 
-2. **Core Analysis Engine**
-   - FastAPI setup with authentication
-   - Policy-to-Prompt semantic scoring
-   - Baseline PII and bias detection
-   - LangChain Guardrails integration
+- `backend/api/` - FastAPI routes and endpoints
+- `backend/core/` - Core analysis models and logic
+  - `bias_detection/` - Bias identification models
+  - `pii_detection/` - Personal data detection systems
+  - `policy_detection/` - EU AI Act compliance verification
+- `backend/models/` - Data models and schemas
+- `backend/utils/` - Helper functions and utilities
 
-3. **Prompt Analyzer UI & Core User Workflow**
-   - Rich text editor with real-time heatmap
-   - Risk summary panel with policy references
-   - Comprehensive logging and analysis
+### Frontend
 
-4. **Dashboard, Reporting & Public Sandbox**
-   - Compliance dashboard with visualizations
-   - Basic reporting functionality
-   - Public demonstration sandbox
+- `frontend/src/components/` - React components
+  - `analyzer/` - Text analysis interface components
+  - `ui/` - Shared UI elements and design system
+- `frontend/src/lib/` - Frontend utilities and API client
+- `frontend/src/app/` - Next.js application pages
 
-## Documentation
+### Model Training
 
-Detailed documentation is available in the `/docs` directory, including:
+- `models/bias_detection/` - Training scripts and data for bias models
+- `models/pii_detection/` - Training scripts for PII detection
+- `models/policy_detection/` - EU AI Act policy text processing
 
-- API documentation
-- Component architecture
-- Database schema
-- Deployment guide
+## Implementation Status
+
+AlignAI currently implements:
+
+- Text analysis capabilities across three dimensions (bias, PII, policy compliance)
+- Backend endpoints for processing prompts and generating analysis
+- Frontend interface for submitting text and viewing analysis results
+- Color-coded risk indicators and detailed explanations
+- Model deployment and integration pipeline
+
+## Future Enhancements
+
+- Expanded model training with additional data sources
+- User authentication and project management
+- Batch analysis capabilities for multiple prompts
+- Extended explanations with mitigation suggestions
+- Additional policy frameworks beyond EU AI Act

@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+// Backend API URL for the fine-tuned models
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+
 // Helper function to handle API errors
 function handleApiError(error: any, context: string) {
   console.error(`Error in ${context}:`, error);
@@ -63,151 +66,43 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    // Create a sandbox-style response based on the prompt content
-    const analyzeResponse: AnalysisResponse = {
-      token_risks: [],
-      overall_risk: {
-        score: 0.2,
-        categories: {
-          bias: options.analyze_bias === false ? 0 : 0.1,
-          pii: options.analyze_pii === false ? 0 : 0.0,
-          policy_violation: options.analyze_policy === false ? 0 : 0.3,
-        },
-      },
-      relevant_policies: [],
-      recommendations: ['No significant issues detected.'],
-    };
-
-    // Analysis logic for bias
-    if (options.analyze_bias !== false && 
-        (text.toLowerCase().includes('gender') || 
-         text.toLowerCase().includes('woman') || 
-         text.toLowerCase().includes('man'))) {
-      
-      const biasWord = text.toLowerCase().includes('gender') ? 'gender' : 
-                       text.toLowerCase().includes('woman') ? 'woman' : 'man';
-      const start = text.toLowerCase().indexOf(biasWord);
-      const end = start + biasWord.length;
-      
-      analyzeResponse.token_risks.push({
-        start,
-        end,
-        risk_score: 0.7,
-        risk_type: 'bias',
-        explanation: 'Potential gender bias detected.',
-      });
-      
-      analyzeResponse.overall_risk.score = Math.max(analyzeResponse.overall_risk.score, 0.7);
-      analyzeResponse.overall_risk.categories.bias = 0.7;
-      analyzeResponse.recommendations = ['Consider using gender-neutral language to avoid potential bias.'];
-      analyzeResponse.relevant_policies.push({
-        article: 'Article 10.2',
-        text: 'High-risk AI systems that continue to learn after being placed on the market or put into service shall be developed in such a way to ensure that possibly biased outputs due to outputs used as an input for future operations ("feedback loops") are duly addressed with appropriate mitigation measures.',
-      });
-    }
-
-    // Analysis logic for PII
-    if (options.analyze_pii !== false && 
-        (text.toLowerCase().includes('email') || text.toLowerCase().includes('@'))) {
-      
-      // Find the @ symbol for email
-      const emailStart = text.toLowerCase().indexOf('@');
-      
-      // Get approximate start of email by finding the last space before the @ symbol
-      let start = 0;
-      if (emailStart > 0) {
-        const spaceBeforeEmail = text.lastIndexOf(' ', emailStart);
-        start = spaceBeforeEmail !== -1 ? spaceBeforeEmail + 1 : 0;
-      }
-      
-      // Approximate end by finding the next space after the @ symbol
-      const end = text.indexOf(' ', emailStart) !== -1 ? 
-                 text.indexOf(' ', emailStart) : text.length;
-      
-      analyzeResponse.token_risks.push({
-        start,
-        end,
-        risk_score: 0.9,
-        risk_type: 'pii',
-        explanation: 'Email address detected. Personal information should be anonymized.',
-      });
-      
-      analyzeResponse.overall_risk.score = Math.max(analyzeResponse.overall_risk.score, 0.9);
-      analyzeResponse.overall_risk.categories.pii = 0.9;
-      analyzeResponse.recommendations.push('Remove or anonymize the email address to protect personal information.');
-      analyzeResponse.relevant_policies.push({
-        article: 'GDPR Article 5',
-        text: 'Personal data shall be processed lawfully, fairly and in a transparent manner in relation to the data subject.',
-      });
-    }
-
-    // Analysis logic for policy violations
-    if (options.analyze_policy !== false && 
-        (text.toLowerCase().includes('illegal') || 
-         text.toLowerCase().includes('exploit') || 
-         text.toLowerCase().includes('hack'))) {
-      
-      const violationWord = text.toLowerCase().includes('illegal') ? 'illegal' : 
-                           text.toLowerCase().includes('exploit') ? 'exploit' : 'hack';
-      const start = text.toLowerCase().indexOf(violationWord);
-      const end = start + violationWord.length;
-      
-      analyzeResponse.token_risks.push({
-        start,
-        end,
-        risk_score: 0.8,
-        risk_type: 'policy_violation',
-        explanation: 'Potential policy violation detected. Content may involve improper activities.',
-      });
-      
-      analyzeResponse.overall_risk.score = Math.max(analyzeResponse.overall_risk.score, 0.8);
-      analyzeResponse.overall_risk.categories.policy_violation = 0.8;
-      analyzeResponse.recommendations.push('Review and revise content to ensure compliance with acceptable use policies.');
-      analyzeResponse.relevant_policies.push({
-        article: 'EU AI Act Article 5',
-        text: 'AI systems intended to be used for the categorisation of natural persons based on biometric data according to ethnicity, gender, political or sexual orientation, or other prohibited grounds of discrimination.'
-      });
-    }
-
-    // Add analysis data structure to match the API responses
-    const enhancedResponse = {
-      ...analyzeResponse,
+    
+    // Prepare the request for the fine-tuned models API
+    const backendPayload = {
       text,
-      analysis: {
-        bias: options.analyze_bias !== false ? {
-          has_bias: analyzeResponse.overall_risk.categories.bias > 0.5,
-          score: analyzeResponse.overall_risk.categories.bias,
-          explanation: analyzeResponse.overall_risk.categories.bias > 0.5 ? 'Potential bias detected in text' : 'No significant bias detected'
-        } : null,
-        pii: options.analyze_pii !== false ? {
-          has_pii: analyzeResponse.overall_risk.categories.pii > 0.5,
-          entities: analyzeResponse.token_risks
-            .filter(risk => risk.risk_type === 'pii')
-            .map(risk => ({
-              entity: text.substring(risk.start, risk.end),
-              type: 'email',
-              start: risk.start,
-              end: risk.end,
-              score: risk.risk_score
-            }))
-        } : null,
-        policy: options.analyze_policy !== false ? {
-          has_violation: analyzeResponse.overall_risk.categories.policy_violation > 0.5,
-          violations: analyzeResponse.token_risks
-            .filter(risk => risk.risk_type === 'policy_violation')
-            .map(risk => ({
-              policy: 'EU AI Act Article 5',
-              severity: risk.risk_score > 0.7 ? 'high' : 'medium',
-              explanation: risk.explanation
-            }))
-        } : null
-      },
-      warnings: analyzeResponse.token_risks.map(risk => risk.explanation),
-      is_safe: analyzeResponse.overall_risk.score < 0.7
+      options: {
+        analyze_bias: options.analyze_bias ?? true,
+        analyze_pii: options.analyze_pii ?? true,
+        analyze_policy: options.analyze_policy ?? true,
+        language: options.language || 'en',
+        threshold: options.threshold ?? 0.7
+      }
     };
+    
+    console.log('Calling backend API:', `${API_BASE_URL}/analyze/text`);
+    const response = await fetch(`${API_BASE_URL}/analyze/text`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(backendPayload),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: response.statusText }));
+      const errorMessage = error.detail || 'Failed to analyze text with fine-tuned models';
+      console.error('Backend API error:', errorMessage);
+      return NextResponse.json(
+        { error: errorMessage },
+        { status: response.status || 500 }
+      );
+    }
+    
+    // Use only the fine-tuned model response
+    const modelResponse = await response.json();
+    console.log('Backend API response:', modelResponse);
 
-    return NextResponse.json(enhancedResponse);
+    // Simply return the fine-tuned model response
+    // No fallback or pattern matching - only using the fine-tuned models
+    return NextResponse.json(modelResponse);
   } catch (error) {
     return handleApiError(error, 'analyze text');
   }

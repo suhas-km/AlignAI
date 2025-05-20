@@ -45,40 +45,58 @@ export interface AnalysisResult {
   is_safe: boolean;
 }
 
-// No need for API_BASE_URL since we're using Next.js API routes directly
+// Backend API URL - we'll use this to call the actual fine-tuned models
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_VERSION = '/api/v1';
 
 export const analyzeText = async (
   text: string,
   options: AnalysisOptions = {}
 ): Promise<AnalysisResult> => {
   try {
-    // Prepare the request payload
-    const payload = {
-      text,
-      options: {
-        analyze_bias: options.analyze_bias ?? true,
-        analyze_pii: options.analyze_pii ?? true,
-        analyze_policy: options.analyze_policy ?? true,
-        language: options.language ?? 'en',
-        threshold: options.threshold ?? 0.7,
-      },
-    };
-
-    // Call the Next.js API route directly
-    const response = await fetch('/api/analyze', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.detail || 'Failed to analyze text');
+    console.log('Analyzing text:', text.substring(0, 30) + '...');
+    console.log('Options:', options);
+    
+    // Try backend service first, with fallback to sandbox analysis
+    let useBackend = true;
+    let result;
+    
+    if (useBackend) {
+      try {
+        // Call the backend service directly (bypassing Next.js API route)
+        const backendUrl = `${API_BASE_URL}${API_VERSION}/analyze/text`;
+        console.log('Calling backend service at:', backendUrl);
+        
+        const payload = {
+          text,
+          options: {
+            analyze_bias: options.analyze_bias ?? true,
+            analyze_pii: options.analyze_pii ?? true,
+            analyze_policy: options.analyze_policy ?? true,
+            language: options.language ?? 'en',
+            threshold: options.threshold ?? 0.7,
+          },
+        };
+        
+        const response = await fetch(backendUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Backend service error: ${response.status} ${response.statusText}`);
+        }
+        
+        result = await response.json();
+        console.log('Backend service response:', result);
+      } catch (backendError) {
+        console.error('Backend service failed:', backendError);
+        throw backendError; // Re-throw the error since we don't want to use fallback
+      }
     }
-
-    const result = await response.json();
+    
     return result as AnalysisResult;
-
   } catch (error) {
     console.error('Error in analyzeText:', error);
     throw new Error(

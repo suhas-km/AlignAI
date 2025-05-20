@@ -8,17 +8,17 @@ const SimplePromptAnalyzer = dynamic(
 );
 
 export const metadata: Metadata = {
-  title: 'Text Analyzer - AlignAI',
-  description: 'Analyze text for bias, PII, and policy violations',
+  title: 'AI Content Analyzer - AlignAI',
+  description: 'EU AI Act compliance checker for your content',
 };
 
 export default function AnalyzerPage() {
   return (
     <div className="container py-8">
-      <div className="mb-8">
-        <h1 className="mb-2 text-3xl font-bold">Text Analyzer</h1>
+      <div className="mb-6">
+        <h1 className="mb-2 text-3xl font-bold">AI Content Analyzer</h1>
         <p className="text-gray-600 dark:text-gray-400">
-          Analyze text for bias, personally identifiable information (PII), and policy violations
+          Check for EU AI Act compliance and ethical guidelines
         </p>
       </div>
       <div className="max-w-4xl mx-auto">
