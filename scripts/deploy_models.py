@@ -38,8 +38,8 @@ def copy_models(base_dir, models_to_copy=None):
         },
         "policy_detection": {
             # Updated path for policy detection model based on project structure
-            "source": os.path.join(base_dir, "Model-Training", "policy-detection", "models", "policy_detection"),
-            "dest": os.path.join(base_dir, "backend", "models", "policy_detection")
+            "source": os.path.join(base_dir, "Model-Training", "policy-detection", "policy-model-weights", "final_model"),
+            "dest": os.path.join(base_dir, "backend", "models", "policy_detection", "final_model")
         }
     }
     
@@ -54,6 +54,10 @@ def copy_models(base_dir, models_to_copy=None):
         if not os.path.exists(source_dir):
             print(f"Warning: Source directory not found: {source_dir}")
             continue
+        
+        # Create destination directory if it doesn't exist
+        os.makedirs(dest_dir, exist_ok=True)
+        print(f"Ensuring directory exists: {dest_dir}")
         
         # Clear destination directory
         if os.path.exists(dest_dir):

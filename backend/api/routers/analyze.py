@@ -58,27 +58,52 @@ async def analyze_text(
         
         # Check for bias if enabled
         if options.analyze_bias:
-            bias_result = detect_bias(text, threshold=options.threshold)
-            analysis["bias"] = bias_result
-            if bias_result.get("has_bias", False):
-                warnings.append("Potential bias detected in text")
-                is_safe = False
+            try:
+                bias_result = detect_bias(text, threshold=options.threshold)
+                analysis["bias"] = bias_result
+                if bias_result.get("has_bias", False):
+                    warnings.append("Potential bias detected in text")
+                    is_safe = False
+            except Exception as e:
+                logger.error(f"Error in bias detection: {str(e)}")
+                analysis["bias"] = {
+                    "has_bias": False,
+                    "instances": [],
+                    "overall_score": 0
+                }
         
         # Check for PII if enabled
         if options.analyze_pii:
-            pii_result = detect_pii(text, language=options.language)
-            analysis["pii"] = pii_result
-            if pii_result.get("has_pii", False):
-                warnings.append("PII detected in text")
-                is_safe = False
+            try:
+                pii_result = detect_pii(text, language=options.language)
+                analysis["pii"] = pii_result
+                if pii_result.get("has_pii", False):
+                    warnings.append("PII detected in text")
+                    is_safe = False
+            except Exception as e:
+                logger.error(f"Error in PII detection: {str(e)}")
+                analysis["pii"] = {
+                    "has_pii": False,
+                    "instances": [],
+                    "overall_score": 0
+                }
         
         # Check for policy violations if enabled
         if options.analyze_policy:
-            policy_result = check_policy_violations(text)
-            analysis["policy"] = policy_result
-            if policy_result.get("has_violation", False):
-                warnings.append("Policy violation detected")
-                is_safe = False
+            try:
+                policy_result = check_policy_violations(text)
+                analysis["policy"] = policy_result
+                if policy_result.get("has_violation", False):
+                    warnings.append("Policy violation detected")
+                    is_safe = False
+            except Exception as e:
+                logger.error(f"Error in policy violation detection: {str(e)}")
+                analysis["policy"] = {
+                    "has_violation": False,
+                    "violations": [],
+                    "overall_score": 0,
+                    "relevant_policies": []
+                }
         
         return AnalysisResponse(
             text=text,

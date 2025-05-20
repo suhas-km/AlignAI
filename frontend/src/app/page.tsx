@@ -80,7 +80,7 @@ export default function Home() {
               {
                 icon: <Code className="h-8 w-8 text-white" />,
                 title: "Developer Friendly",
-                description: "Easy-to-use API and tools for seamless integration into your workflow."
+                description: "Intuitive tools and a straightforward interface for seamless integration into your workflow."
               }
             ].map((feature, index) => (
               <motion.div 
@@ -113,7 +113,7 @@ export default function Home() {
             Ready to get started?
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-xl text-gray-300">
-            Join thousands of developers building safer AI applications with AlignAI.
+            Start building safer AI applications with AlignAI's powerful analysis capabilities.
           </p>
           <div className="mt-8">
             <Button 
