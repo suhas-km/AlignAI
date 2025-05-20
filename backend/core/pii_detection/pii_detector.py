@@ -126,6 +126,12 @@ class PIIDetectionEngine:
                 
                 # If PII is detected, use ML results
                 if ml_entities:
+                    # Log each detected entity for debugging
+                    for i, entity in enumerate(ml_entities, 1):
+                        logger.info(f"ML Detected PII {i}: '{entity.get('matched_text', '')}' | "
+                                  f"Type: {entity.get('pii_type', 'UNKNOWN')} | "
+                                  f"Position: {entity.get('start', 0)}-{entity.get('end', 0)}")
+                    
                     logger.info(f"ML-based PII detector found {len(ml_entities)} PII entities")
                     return ml_entities
                 

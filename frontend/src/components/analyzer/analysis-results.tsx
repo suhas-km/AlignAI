@@ -27,6 +27,7 @@ type AnalysisResponse = {
   token_risks: TokenRisk[];
   policy_matches: PolicyMatch[];
   overall_risk: OverallRisk;
+  recommendations: string[];
 };
 
 type AnalysisResultsProps = {
@@ -147,7 +148,16 @@ export default function AnalysisResults({ results }: AnalysisResultsProps) {
       <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
         <h3 className="mb-3 text-lg font-semibold">Recommendations</h3>
         <ul className="space-y-2 text-sm">
-          {results.token_risks.length > 0 ? (
+          {results.recommendations && results.recommendations.length > 0 ? (
+            // Display ML-generated recommendations from the backend
+            results.recommendations.map((recommendation, index) => (
+              <li key={`rec-${index}`} className="flex items-start gap-2">
+                <span className="mt-0.5 text-blue-600">●</span>
+                <span>{recommendation}</span>
+              </li>
+            ))
+          ) : results.token_risks.length > 0 || results.policy_matches.length > 0 ? (
+            // Fallback recommendations if ML recommendations are missing but issues were detected
             <>
               {results.token_risks.some(r => r.risk_type === 'bias') && (
                 <li className="flex items-start gap-2">

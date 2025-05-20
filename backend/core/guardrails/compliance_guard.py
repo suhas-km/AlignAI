@@ -49,13 +49,23 @@ class ComplianceGuard:
         4. Aggregates and scores all results
         
         Args:
-            prompt: Input prompt text to validate
-            options: Configuration options for validation (e.g., which detectors to use)
+            prompt: The prompt text to validate
+            options: Analysis options (analyzeBias, analyzePII, analyzePolicy)
             
         Returns:
-            Dict containing validation results including token risks, policy matches, and overall risk score
+            Dict containing validation results including:
+            - valid: bool indicating if prompt meets compliance requirements
+            - token_risks: List of detected risks in the prompt
+            - policy_matches: List of matched policies
+            - overall_risk: Risk assessment with score and categories
+            - recommendations: List of improvement suggestions
         """
+        logger.info("=== Starting prompt validation ===")
+        logger.info(f"Options received: {options}")
+        logger.debug(f"Prompt length: {len(prompt)} characters")
+        
         if not prompt or not prompt.strip():
+            logger.warning("Empty or whitespace-only prompt provided")
             return {
                 "valid": True,
                 "token_risks": [],
@@ -67,13 +77,13 @@ class ComplianceGuard:
                 "recommendations": []
             }
         
-        # Default options if none provided
         if options is None:
             options = {
                 "analyzeBias": True,
                 "analyzePII": True,
                 "analyzePolicy": True
             }
+            logger.info("Using default analysis options")
         
         token_risks = []
         policy_matches = []
@@ -81,39 +91,74 @@ class ComplianceGuard:
         try:
             # Detect bias if enabled
             if options.get("analyzeBias", True):
-                logger.info("Running bias detection on prompt")
-                bias_results = self.bias_detector.detect_bias(prompt)
-                token_risks.extend(bias_results)
+                logger.info("Starting bias detection...")
+                try:
+                    bias_results = self.bias_detector.detect_bias(prompt)
+                    logger.info(f"Bias detection completed. Found {len(bias_results)} potential issues")
+                    if logger.isEnabledFor(logging.DEBUG):
+                        for i, issue in enumerate(bias_results[:5]):  # Log first 5 issues to avoid log spam
+                            logger.debug(f"Bias issue {i+1}: {issue}")
+                    token_risks.extend(bias_results)
+                except Exception as e:
+                    logger.error(f"Error in bias detection: {str(e)}", exc_info=True)
+                    raise
+            else:
+                logger.info("Bias detection skipped as per options")
             
             # Detect PII if enabled
             if options.get("analyzePII", True):
-                logger.info("Running PII detection on prompt")
-                pii_results = self.pii_detector.detect_pii(prompt)
-                token_risks.extend(pii_results)
+                logger.info("Starting PII detection...")
+                try:
+                    pii_results = self.pii_detector.detect_pii(prompt)
+                    logger.info(f"PII detection completed. Found {len(pii_results)} potential PII instances")
+                    if logger.isEnabledFor(logging.DEBUG):
+                        for i, pii in enumerate(pii_results[:5]):  # Log first 5 PII instances
+                            logger.debug(f"PII detected {i+1}: {pii}")
+                    token_risks.extend(pii_results)
+                except Exception as e:
+                    logger.error(f"Error in PII detection: {str(e)}", exc_info=True)
+                    raise
+            else:
+                logger.info("PII detection skipped as per options")
             
             # Check policy compliance if enabled
             if options.get("analyzePolicy", True):
-                logger.info("Running policy compliance check on prompt")
-                policy_results = self.policy_detector.detect_policy_violations(prompt)
-                policy_matches.extend(policy_results)
+                logger.info("Starting policy compliance check...")
+                try:
+                    policy_results = self.policy_detector.detect_policy_violations(prompt)
+                    logger.info(f"Policy check completed. Found {len(policy_results)} potential policy violations")
+                    if logger.isEnabledFor(logging.DEBUG) and policy_results:
+                        for i, violation in enumerate(policy_results[:3]):  # Log first 3 violations
+                            logger.debug(f"Policy violation {i+1}: {violation.get('policy_id', 'N/A')} - {violation.get('text_snippet', '')[:100]}...")
+                    policy_matches.extend(policy_results)
+                except Exception as e:
+                    logger.error(f"Error in policy compliance check: {str(e)}", exc_info=True)
+                    raise
+            else:
+                logger.info("Policy compliance check skipped as per options")
             
             # Calculate overall risk
+            logger.info("Calculating overall risk...")
             overall_risk = self.calculate_overall_risk(token_risks, policy_matches)
+            logger.info(f"Overall risk score: {overall_risk.get('score', 0.0):.2f}")
             
             # Generate recommendations
+            logger.info("Generating recommendations...")
             recommendations = self.generate_recommendations(token_risks, policy_matches)
+            logger.info(f"Generated {len(recommendations)} recommendations")
             
             # Determine if valid based on risk threshold
-            # This could be more sophisticated in a real implementation
             is_valid = overall_risk["score"] < 0.8  # High threshold for now
+            logger.info(f"Validation result: {'VALID' if is_valid else 'INVALID'}")
             
-            return {
+            result = {
                 "valid": is_valid,
                 "token_risks": token_risks,
                 "policy_matches": policy_matches,
                 "overall_risk": overall_risk,
                 "recommendations": recommendations
             }
+            return result
             
         except Exception as e:
             logger.error(f"Error validating prompt: {str(e)}")

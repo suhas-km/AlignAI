@@ -112,10 +112,34 @@ class PolicyDetectionEngine:
             except Exception as e:
                 logger.error(f"Error in ML-based policy detection: {str(e)}.")
         
-        # Rule-based detection is not implemented for policies
-        # as it requires complex semantic understanding
-        logger.warning("Rule-based policy detection not implemented, returning empty results")
-        return []
+        # Basic rule-based policy detection as fallback
+        logger.info("Using rule-based policy detection as fallback")
+        policy_matches = []
+
+        # Define some basic keywords for each policy
+        policy_keywords = {
+            "article_10": ["data quality", "training data", "bias", "discrimination", "dataset", "representative", "personal data"],
+            "article_15": ["accuracy", "robust", "security", "resilient", "reliable", "cybersecurity", "reproducible"],
+            "article_17": ["risk", "management", "mitigation", "assessment", "identify risks", "high-risk"],
+        }
+        
+        # Simple keyword matching
+        text_lower = text.lower()
+        for policy_id, keywords in policy_keywords.items():
+            for keyword in keywords:
+                if keyword in text_lower:
+                    info = self.get_policy_info(policy_id)
+                    policy_matches.append({
+                        "policy_id": int(policy_id.split("_")[1]) if "_" in policy_id else 0,
+                        "article": f"Article {policy_id.split('_')[1]}" if "_" in policy_id else policy_id,
+                        "similarity_score": 0.6,  # Medium confidence for rule-based detection
+                        "text_snippet": info.get("summary", "Policy match detected")
+                    })
+                    # Only match once per policy
+                    break
+                    
+        logger.info(f"Rule-based policy detection found {len(policy_matches)} potential matches")
+        return policy_matches
     
     def get_policy_info(self, policy_id: str) -> Dict[str, Any]:
         """Get information about a specific policy.

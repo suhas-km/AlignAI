@@ -1,190 +1,104 @@
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, HTTPException
-from sqlalchemy.orm import Session
-from typing import List, Dict, Any
-import json
+from fastapi import APIRouter, HTTPException, Body
+from typing import Dict, Any, List, Optional
 import logging
+from pydantic import BaseModel, Field
 
-from database.session import get_db
-from schemas.prompt import PromptAnalyzeRequest, PromptAnalysisResponse
-from schemas.output import OutputAnalyzeRequest, OutputAnalysisResponse
-from core.embeddings.text_embedding import TextEmbeddingService
-from core.bias_detection.bias_detector import BiasDetectionEngine
-from core.pii_detection.pii_detector import PIIDetectionEngine
-from core.guardrails.compliance_guard import ComplianceGuard
+from core.bias_detection import detect_bias
+from core.pii_detection import detect_pii
+from core.policy_detection import check_policy_violations
 
 router = APIRouter(
-    prefix="/api/v1/analyze",
+    prefix="/analyze",
     tags=["analysis"],
     responses={404: {"description": "Not found"}},
 )
 
 logger = logging.getLogger(__name__)
 
-# Initialize services
-# Use ML-based detectors by default
-compliance_guard = ComplianceGuard(use_ml=True)
+# Request and Response Models
+class AnalysisOptions(BaseModel):
+    analyze_bias: bool = True
+    analyze_pii: bool = True
+    analyze_policy: bool = True
+    language: Optional[str] = "en"
+    threshold: float = Field(0.7, ge=0.0, le=1.0)
 
-@router.websocket("/prompt")
-async def analyze_prompt_ws(websocket: WebSocket, db: Session = Depends(get_db)):
-    """WebSocket endpoint for real-time prompt analysis."""
-    await websocket.accept()
-    try:
-        while True:
-            # Receive data from the client
-            data = await websocket.receive_text()
-            request_data = json.loads(data)
-            
-            # Convert to Pydantic model for validation
-            request = PromptAnalyzeRequest(**request_data)
-            
-            # Map frontend options to backend options
-            analysis_options = {
-                "analyzeBias": request.options.get("analyze_bias", True),
-                "analyzePII": request.options.get("analyze_pii", True),
-                "analyzePolicy": request.options.get("analyze_policy", True)
-            }
-            
-            # Use the compliance guard to validate the prompt
-            logger.info(f"Analyzing prompt with options: {analysis_options}")
-            validation_results = compliance_guard.validate_prompt(request.text, analysis_options)
-            
-            # Convert the results to a format compatible with the API
-            response = {
-                "token_risks": validation_results.get("token_risks", []),
-                "policy_matches": validation_results.get("policy_matches", []),
-                "overall_risk": validation_results.get("overall_risk", {
-                    "score": 0.0,
-                    "categories": {}
-                }),
-                "recommendations": validation_results.get("recommendations", [])
-            }
-            
-            logger.info(f"Analysis completed with risk score: {response['overall_risk']['score']}")
-            
-            # Send response back through WebSocket
-            await websocket.send_json(response)
-    
-    except WebSocketDisconnect:
-        logger.info("WebSocket disconnected")
-    except Exception as e:
-        logger.error(f"Error in WebSocket: {str(e)}")
-        await websocket.close(code=1011, reason=f"Internal server error: {str(e)}")
+class AnalysisRequest(BaseModel):
+    text: str = Field(..., description="The text to analyze")
+    options: AnalysisOptions = Field(default_factory=AnalysisOptions)
 
-@router.websocket("/output")
-async def analyze_output_ws(websocket: WebSocket, db: Session = Depends(get_db)):
-    """WebSocket endpoint for real-time LLM output analysis."""
-    await websocket.accept()
-    try:
-        while True:
-            # Receive data from the client
-            data = await websocket.receive_text()
-            request_data = json.loads(data)
-            
-            # Convert to Pydantic model for validation
-            request = OutputAnalyzeRequest(**request_data)
-            
-            # Map frontend options to backend options
-            analysis_options = {
-                "analyzeBias": request.options.get("analyze_bias", True),
-                "analyzePII": request.options.get("analyze_pii", True),
-                "analyzePolicy": request.options.get("analyze_policy", True)
-            }
-            
-            # Use the compliance guard to validate the LLM output
-            # This uses the same method as for prompts, as the analysis logic is identical
-            logger.info(f"Analyzing LLM output with options: {analysis_options}")
-            validation_results = compliance_guard.validate_prompt(request.text, analysis_options)
-            
-            # Convert the results to a format compatible with the API
-            response = {
-                "token_risks": validation_results.get("token_risks", []),
-                "policy_matches": validation_results.get("policy_matches", []),
-                "overall_risk": validation_results.get("overall_risk", {
-                    "score": 0.0,
-                    "categories": {}
-                }),
-                "recommendations": validation_results.get("recommendations", [])
-            }
-            
-            logger.info(f"Output analysis completed with risk score: {response['overall_risk']['score']}")
-            
-            # Send response back through WebSocket
-            await websocket.send_json(response)
-    
-    except WebSocketDisconnect:
-        logger.info("WebSocket disconnected")
-    except Exception as e:
-        logger.error(f"Error in WebSocket: {str(e)}")
-        await websocket.close(code=1011, reason=f"Internal server error: {str(e)}")
+class AnalysisResponse(BaseModel):
+    text: str = Field(..., description="The analyzed text")
+    analysis: Dict[str, Any] = Field(..., description="Detailed analysis results")
+    warnings: List[str] = Field(default_factory=list, description="List of warnings")
+    is_safe: bool = Field(True, description="Whether the text is considered safe")
 
-@router.post("/prompt", response_model=PromptAnalysisResponse)
-async def analyze_prompt(
-    request: PromptAnalyzeRequest, 
-    db: Session = Depends(get_db)
-):
-    """HTTP endpoint for prompt analysis (non-WebSocket version)."""
-    try:
-        # Map frontend options to backend options
-        analysis_options = {
-            "analyzeBias": request.options.get("analyze_bias", True),
-            "analyzePII": request.options.get("analyze_pii", True),
-            "analyzePolicy": request.options.get("analyze_policy", True)
-        }
-        
-        # Use the compliance guard to validate the prompt
-        logger.info(f"Analyzing prompt via HTTP with options: {analysis_options}")
-        validation_results = compliance_guard.validate_prompt(request.text, analysis_options)
-        
-        # Convert the results to a format compatible with the API
-        response = {
-            "token_risks": validation_results.get("token_risks", []),
-            "policy_matches": validation_results.get("policy_matches", []),
-            "overall_risk": validation_results.get("overall_risk", {
-                "score": 0.0,
-                "categories": {}
-            }),
-            "recommendations": validation_results.get("recommendations", [])
-        }
-        
-        logger.info(f"HTTP analysis completed with risk score: {response['overall_risk']['score']}")
-        return response
+@router.post("/text", response_model=AnalysisResponse)
+async def analyze_text(
+    text: str = Body(..., embed=True, description="Text to analyze"),
+    options: AnalysisOptions = Body(default_factory=AnalysisOptions)
+) -> Dict[str, Any]:
+    """
+    Analyze text for bias, PII, and policy violations.
     
+    This endpoint analyzes the provided text based on the specified options and returns
+    detailed analysis results including any detected issues.
+    
+    Args:
+        text: The text to analyze
+        options: Analysis configuration options
+        
+    Returns:
+        Analysis results including any warnings and safety status
+    """
+    try:
+        analysis = {}
+        warnings = []
+        is_safe = True
+        
+        # Check for bias if enabled
+        if options.analyze_bias:
+            bias_result = detect_bias(text, threshold=options.threshold)
+            analysis["bias"] = bias_result
+            if bias_result.get("has_bias", False):
+                warnings.append("Potential bias detected in text")
+                is_safe = False
+        
+        # Check for PII if enabled
+        if options.analyze_pii:
+            pii_result = detect_pii(text, language=options.language)
+            analysis["pii"] = pii_result
+            if pii_result.get("has_pii", False):
+                warnings.append("PII detected in text")
+                is_safe = False
+        
+        # Check for policy violations if enabled
+        if options.analyze_policy:
+            policy_result = check_policy_violations(text)
+            analysis["policy"] = policy_result
+            if policy_result.get("has_violation", False):
+                warnings.append("Policy violation detected")
+                is_safe = False
+        
+        return AnalysisResponse(
+            text=text,
+            analysis=analysis,
+            warnings=warnings,
+            is_safe=is_safe
+        )
+        
     except Exception as e:
-        logger.error(f"Error in analyze_prompt: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        logger.error(f"Error analyzing text: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error analyzing text: {str(e)}"
+        )
 
-@router.post("/output", response_model=OutputAnalysisResponse)
-async def analyze_output(
-    request: OutputAnalyzeRequest, 
-    db: Session = Depends(get_db)
-):
-    """HTTP endpoint for LLM output analysis (non-WebSocket version)."""
-    try:
-        # Map frontend options to backend options
-        analysis_options = {
-            "analyzeBias": request.options.get("analyze_bias", True),
-            "analyzePII": request.options.get("analyze_pii", True),
-            "analyzePolicy": request.options.get("analyze_policy", True)
-        }
-        
-        # Use the compliance guard to validate the LLM output
-        logger.info(f"Analyzing LLM output via HTTP with options: {analysis_options}")
-        validation_results = compliance_guard.validate_prompt(request.text, analysis_options)
-        
-        # Convert the results to a format compatible with the API
-        response = {
-            "token_risks": validation_results.get("token_risks", []),
-            "policy_matches": validation_results.get("policy_matches", []),
-            "overall_risk": validation_results.get("overall_risk", {
-                "score": 0.0,
-                "categories": {}
-            }),
-            "recommendations": validation_results.get("recommendations", [])
-        }
-        
-        logger.info(f"HTTP output analysis completed with risk score: {response['overall_risk']['score']}")
-        return response
+@router.get("/health")
+async def health_check() -> Dict[str, str]:
+    """Health check endpoint for the analysis service.
     
-    except Exception as e:
-        logger.error(f"Error in analyze_output: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    Returns:
+        A simple status message indicating the service is running
+    """
+    return {"status": "ok"}

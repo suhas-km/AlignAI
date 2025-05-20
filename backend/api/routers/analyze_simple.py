@@ -1,12 +1,10 @@
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, HTTPException, Request
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException, Request
 from fastapi.responses import JSONResponse
-from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 import json
 import logging
 import random
 
-from database.session import get_db
 from schemas.prompt import PromptAnalyzeRequest, PromptAnalysisResponse
 from schemas.output import OutputAnalyzeRequest, OutputAnalysisResponse
 
@@ -19,7 +17,7 @@ router = APIRouter(
 logger = logging.getLogger(__name__)
 
 @router.websocket("/prompt")
-async def analyze_prompt_ws(websocket: WebSocket, db: Session = Depends(get_db)):
+async def analyze_prompt_ws(websocket: WebSocket):
     """WebSocket endpoint for real-time prompt analysis."""
     await websocket.accept()
     try:
@@ -58,8 +56,9 @@ async def analyze_prompt_ws(websocket: WebSocket, db: Session = Depends(get_db))
             
             # Add mock policy match
             if len(text) > 20:
-                # Get a random policy from the database
-                policy = db.execute("SELECT id, article, title, summary FROM policies ORDER BY RANDOM() LIMIT 1").fetchone()
+                # Get a random policy from the database using SQLAlchemy's text() function
+                query = text("SELECT id, article, title, summary FROM policies ORDER BY RANDOM() LIMIT 1")
+                policy = db.execute(query).fetchone()
                 
                 if policy:
                     policy_matches.append({
@@ -109,8 +108,7 @@ async def analyze_prompt_ws(websocket: WebSocket, db: Session = Depends(get_db))
 
 @router.post("/prompt", response_model=PromptAnalysisResponse)
 async def analyze_prompt(
-    request: PromptAnalyzeRequest, 
-    db: Session = Depends(get_db)
+    request: PromptAnalyzeRequest
 ):
     """HTTP endpoint for prompt analysis (non-WebSocket version)."""
     try:
@@ -143,9 +141,10 @@ async def analyze_prompt(
         
         # Add mock policy match
         if len(text) > 20:
-            # Get a random policy from the database
+            # Get a random policy from the database using SQLAlchemy's text() function
             try:
-                policy = db.execute("SELECT id, article, title, summary FROM policies ORDER BY RANDOM() LIMIT 1").fetchone()
+                query = text("SELECT id, article, title, summary FROM policies ORDER BY RANDOM() LIMIT 1")
+                policy = db.execute(query).fetchone()
                 
                 if policy:
                     policy_matches.append({

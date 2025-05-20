@@ -26,8 +26,8 @@ class MLPIIDetector:
         
         # Set model directory
         if model_dir is None:
-            # Try to find model in application path
-            self.model_dir = Path(__file__).parent.parent.parent / "models" / "pii_detection"
+            # Try to find model in application path - directly use final_model path
+            self.model_dir = Path(__file__).parent.parent.parent / "models" / "pii_detection" / "final_model"
             # If not found, use the original training path
             if not self.model_dir.exists():
                 self.model_dir = Path("/Users/suhaskm/Desktop/EU AI Act/AlignAI/Model-Training/pII-detection/models/pii_detection/final_model")
@@ -44,11 +44,32 @@ class MLPIIDetector:
             True if model loaded successfully, False otherwise.
         """
         try:
+            # Make absolutely sure we're using the final_model directory
+            base_dir = Path(__file__).parent.parent.parent / "models" / "pii_detection" / "final_model"
+            self.model_dir = base_dir
+            
             logger.info(f"Loading PII detection model from {self.model_dir}")
             
-            # Load tokenizer and model
-            self.tokenizer = AutoTokenizer.from_pretrained(str(self.model_dir))
-            self.model = AutoModelForTokenClassification.from_pretrained(str(self.model_dir))
+            # Ensure the model directory exists
+            if not self.model_dir.exists():
+                logger.error(f"PII detection model directory not found at {self.model_dir}")
+                return False
+                
+            # Check that required files exist
+            required_files = ["config.json", "model.safetensors", "tokenizer.json"]
+            for file in required_files:
+                if not (self.model_dir / file).exists():
+                    logger.error(f"Required model file {file} not found in {self.model_dir}")
+                    return False
+            
+            logger.info(f"Required files verified in {self.model_dir}")
+            
+            # Load tokenizer and model with explicit path to each file
+            logger.info(f"Loading tokenizer from {self.model_dir}")
+            self.tokenizer = AutoTokenizer.from_pretrained(str(self.model_dir), local_files_only=True)
+            
+            logger.info(f"Loading model from {self.model_dir}")
+            self.model = AutoModelForTokenClassification.from_pretrained(str(self.model_dir), local_files_only=True)
             
             # Load metadata
             metadata_path = self.model_dir / "metadata.json"
@@ -84,68 +105,101 @@ class MLPIIDetector:
             return []
         
         try:
-            # Tokenize the input
-            inputs = self.tokenizer(text, return_tensors="pt", truncation=True, padding=True)
+            logger.debug(f"Detecting PII in text: {text[:100]}...")
             
-            # Get predictions
+            # Tokenize the input
+            inputs = self.tokenizer(text, return_tensors="pt", truncation=True, padding=True, return_offsets_mapping=True)
+            
+            # Get predictions with confidence scores
             with torch.no_grad():
-                outputs = self.model(**inputs)
+                outputs = self.model(**{k: v for k, v in inputs.items() if k != 'offset_mapping'})
                 predictions = torch.argmax(outputs.logits, dim=2)
+                # Get confidence scores
+                probs = torch.nn.functional.softmax(outputs.logits, dim=-1)
+                max_probs = torch.max(probs, dim=-1).values[0].tolist()
             
             # Process the predictions
             tokens = self.tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
             token_predictions = [self.id2tag.get(prediction.item(), "O") for prediction in predictions[0]]
+            offset_mapping = inputs["offset_mapping"][0]
+            
+            # Log detailed token and prediction information
+            logger.info(f"Input text: {text}")
+            logger.info(f"Tokens and their predictions (confidence > 0.5):")
+            any_pii_found = False
+            
+            for i, (token, pred, prob) in enumerate(zip(tokens, token_predictions, max_probs)):
+                if pred != "O" and prob > 0.5:  # Only log predictions with confidence > 50%
+                    any_pii_found = True
+                    logger.info(f"  Token: {token:<15} | Prediction: {pred:<15} | Confidence: {prob:.2%}")
+            
+            if not any_pii_found:
+                logger.info("  No PII detected with confidence > 50%")
+            
+            logger.debug(f"All tokens: {tokens}")
+            logger.debug(f"All predictions: {token_predictions}")
             
             # Group tokens to get PII entities
             entities = []
             current_entity = None
             
-            for i, (token, prediction) in enumerate(zip(tokens, token_predictions)):
-                # Skip special tokens
-                if token in [self.tokenizer.cls_token, self.tokenizer.sep_token, self.tokenizer.pad_token]:
+            # First, collect all valid PII tokens with their positions and types
+            pii_tokens = []
+            for i, (token, pred, prob) in enumerate(zip(tokens, token_predictions, max_probs)):
+                # Skip special tokens and padding
+                if token in ['[CLS]', '[SEP]', '[PAD]']:
                     continue
                 
-                # If prediction is not "O" (not a PII entity), collect the entity
-                if prediction != "O":
-                    # Extract the PII type from the prediction (e.g., "PII-PERSON" → "PERSON")
-                    pii_type = prediction.split("-")[1] if "-" in prediction else prediction
+                token_start, token_end = offset_mapping[i].tolist()
+                clean_token = token.replace("##", "").strip()
+                
+                if pred != "O" and prob > 0.5:  # Only consider predictions with confidence > 50%
+                    entity_type = pred[2:] if "-" in pred else pred
+                    is_begin = pred.startswith("B-") or pred == "O"
                     
-                    # Get the word from subword token
-                    word = token
-                    if token.startswith("##"):
-                        word = token[2:]
-                        # Append to previous entity if it exists
-                        if current_entity:
-                            current_entity["text"] += word
-                            continue
-                    
-                    # If we have a current entity of the same type, extend it
-                    if current_entity and current_entity["pii_type"] == pii_type:
-                        if not token.startswith("##"):
-                            current_entity["text"] += " " + word
-                        else:
-                            current_entity["text"] += word
-                    else:
-                        # Save previous entity if it exists
-                        if current_entity:
-                            entities.append(current_entity)
-                        
-                        # Start a new entity
-                        # Get character offsets by finding the word in the original text
-                        start_idx = text.lower().find(word.lower())
-                        if start_idx != -1:
-                            current_entity = {
-                                "start": start_idx,
-                                "end": start_idx + len(word),
-                                "text": word,
-                                "pii_type": pii_type,
-                                "score": 0.9  # Placeholder for confidence score
-                            }
-                else:
-                    # If the current token is not a PII entity, save any current entity
-                    if current_entity:
+                    pii_tokens.append({
+                        'token': clean_token,
+                        'start': token_start,
+                        'end': token_end,
+                        'type': entity_type,
+                        'is_begin': is_begin,
+                        'score': prob
+                    })
+            
+            # Now group consecutive tokens into entities
+            current_entity = None
+            for i, token_info in enumerate(pii_tokens):
+                if current_entity is None or token_info['is_begin'] or token_info['type'] != current_entity['pii_type']:
+                    # Save current entity if exists
+                    if current_entity is not None:
                         entities.append(current_entity)
-                        current_entity = None
+                    
+                    # Start new entity
+                    current_entity = {
+                        'start': token_info['start'],
+                        'end': token_info['end'],
+                        'text': token_info['token'],
+                        'pii_type': token_info['type'],
+                        'score': token_info['score'],
+                        'tokens': [token_info]
+                    }
+                else:
+                    # Continue current entity
+                    current_entity['end'] = token_info['end']
+                    current_entity['text'] += ' ' + token_info['token'] if not token_info['token'].startswith('##') else token_info['token']
+                    current_entity['tokens'].append(token_info)
+                    # Update average score
+                    current_entity['score'] = sum(t['score'] for t in current_entity['tokens']) / len(current_entity['tokens'])
+            
+            # Add the last entity if it exists
+            if current_entity is not None:
+                entities.append(current_entity)
+                
+            # Log the final entities
+            logger.info(f"Grouped {len(entities)} PII entities:")
+            for i, entity in enumerate(entities, 1):
+                logger.info(f"  Entity {i}: '{entity['text']}' | Type: {entity['pii_type']} | "
+                           f"Position: {entity['start']}-{entity['end']} | Score: {entity['score']:.2%}")
             
             # Add the last entity if it exists
             if current_entity:
@@ -154,15 +208,19 @@ class MLPIIDetector:
             # Format results for API response
             results = []
             for entity in entities:
-                results.append({
-                    "start": entity["start"],
-                    "end": entity["end"],
-                    "risk_score": entity["score"],
+                result = {
+                    "start": entity.get("start", 0),
+                    "end": entity.get("end", 0),
+                    "risk_score": entity.get("score", 0.9),  # Default to 0.9 if not provided
                     "risk_type": "pii",
-                    "pii_type": entity["pii_type"],
-                    "matched_text": entity["text"],
-                    "explanation": f"{entity['pii_type']} detected"
-                })
+                    "pii_type": entity.get("pii_type", "UNKNOWN"),
+                    "matched_text": entity.get("text", ""),
+                    "explanation": f"{entity.get('pii_type', 'PII')} detected"
+                }
+                results.append(result)
+                
+                # Log the formatted result for debugging
+                logger.debug(f"Formatted PII result: {result}")
             
             return results
             
@@ -261,6 +319,11 @@ class MLPIIDetector:
             if pii_type not in pii_by_type:
                 pii_by_type[pii_type] = []
             pii_by_type[pii_type].append(entity)
+        
+        logger.info(f"Detected {len(entities)} PII entities")
+        for i, entity in enumerate(entities, 1):
+            logger.info(f"  Entity {i}: {entity['text']} | Type: {entity['pii_type']} | Position: {entity['start']}-{entity['end']}")
+        logger.debug(f"All entities: {entities}")
         
         # Create the result dictionary
         result = {

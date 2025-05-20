@@ -29,7 +29,12 @@ class MLBiasDetector:
         # Set model directory
         if model_dir is None:
             # Try to find model in application path
-            self.model_dir = Path(__file__).parent.parent.parent / "models" / "bias_detection"
+            base_dir = Path(__file__).parent.parent.parent / "models" / "bias_detection"
+            # Check if we have the nested structure (models/bias_detection/bias_detection/...)
+            if (base_dir / "bias_detection").exists():
+                self.model_dir = base_dir / "bias_detection"
+            else:
+                self.model_dir = base_dir
             # If not found, use the original training path
             if not self.model_dir.exists():
                 self.model_dir = Path("/Users/suhaskm/Desktop/EU AI Act/AlignAI/Model-Training/bias-detection/models/bias_detection")

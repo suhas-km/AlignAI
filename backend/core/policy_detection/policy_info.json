@@ -1,0 +1,17 @@
+{
+  "article_10": {
+    "title": "Data and data governance",
+    "summary": "Ensuring appropriate data governance and management practices.",
+    "risk_level": "high"
+  },
+  "article_15": {
+    "title": "Accuracy, robustness and cybersecurity",
+    "summary": "AI systems should be accurate, robust and secure.",
+    "risk_level": "high"
+  },
+  "article_17": {
+    "title": "Risk management system",
+    "summary": "Implementation of risk management systems for high-risk AI.",
+    "risk_level": "high"
+  }
+}
