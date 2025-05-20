@@ -27,9 +27,10 @@ class MLPolicyDetector:
         
         # Set model directory
         if model_dir is None:
-            # Try to find model in application path
-            self.model_dir = Path(__file__).parent.parent.parent / "models" / "policy_detection"
-            # If not found, use the original training path
+            # Directly use the final_model path which we found contains the model files
+            self.model_dir = Path(__file__).parent.parent.parent / "models" / "policy_detection" / "final_model"
+            
+            # If not found, use the original training path as fallback
             if not self.model_dir.exists():
                 self.model_dir = Path("/Users/suhaskm/Desktop/EU AI Act/AlignAI/Model-Training/policy-detection/policy-model-weights")
         else:
@@ -47,31 +48,63 @@ class MLPolicyDetector:
             True if model loaded successfully, False otherwise.
         """
         try:
+            # Make absolutely sure we're using the final_model directory
+            base_dir = Path(__file__).parent.parent.parent / "models" / "policy_detection" / "final_model"
+            self.model_dir = base_dir
+            
             logger.info(f"Loading policy detector model from {self.model_dir}")
             
-            # Load tokenizer and model
-            self.tokenizer = AutoTokenizer.from_pretrained(str(self.model_dir))
-            self.model = AutoModelForSequenceClassification.from_pretrained(str(self.model_dir))
+            # Ensure the model directory exists
+            if not self.model_dir.exists():
+                logger.error(f"Policy detection model directory not found at {self.model_dir}")
+                return False
+                
+            # Check that required files exist
+            required_files = ["config.json", "model.safetensors", "tokenizer.json"]
+            for file in required_files:
+                if not (self.model_dir / file).exists():
+                    logger.error(f"Required model file {file} not found in {self.model_dir}")
+                    return False
             
-            # Load metadata
-            metadata_path = self.model_dir / "metadata.json"
-            if metadata_path.exists():
-                with open(metadata_path, "r") as f:
-                    metadata = json.load(f)
-                    self.id2label = metadata.get("id2label", {})
-                    self.label2id = metadata.get("label2id", {})
+            logger.info(f"Required files verified in {self.model_dir}")
+                    
+            # Load tokenizer and model with explicit path and local_files_only
+            logger.info(f"Loading tokenizer from {self.model_dir}")
+            self.tokenizer = AutoTokenizer.from_pretrained(str(self.model_dir), local_files_only=True)
+            
+            logger.info(f"Loading model from {self.model_dir}")
+            self.model = AutoModelForSequenceClassification.from_pretrained(str(self.model_dir), local_files_only=True)
+            
+            # Try to load label mapping from label_mapping.json first
+            label_mapping_path = self.model_dir / "label_mapping.json"
+            if label_mapping_path.exists():
+                try:
+                    with open(label_mapping_path, "r") as f:
+                        label_mapping = json.load(f)
+                        # Convert the label mapping to the expected format
+                        self.id2label = {str(i): category for i, category in enumerate(label_mapping.keys(), 1)}
+                        self.id2label["0"] = "compliant"  # Add compliant class
+                        self.label2id = {v: str(k) for k, v in self.id2label.items()}
+                        logger.info(f"Loaded label mapping from {label_mapping_path}")
+                except Exception as e:
+                    logger.error(f"Error loading label mapping: {str(e)}")
+                    self._setup_default_labels()
             else:
-                logger.warning(f"Metadata file not found at {metadata_path}")
-                # Set up basic labels - this should match the training labels
-                self.id2label = {"0": "compliant", "1": "non_compliant"}
-                self.label2id = {"compliant": "0", "non_compliant": "1"}
-            
+                logger.warning(f"Label mapping file not found at {label_mapping_path}")
+                self._setup_default_labels()
+                
             logger.info("Policy detector model loaded successfully")
             return True
-            
+                
         except Exception as e:
             logger.error(f"Error loading policy detector model: {str(e)}")
             return False
+            
+    def _setup_default_labels(self):
+        """Set up default labels when no mapping file is found."""
+        logger.warning("Using default label mapping")
+        self.id2label = {"0": "compliant", "1": "non_compliant"}
+        self.label2id = {"compliant": "0", "non_compliant": "1"}
     
     def _load_policy_info(self) -> None:
         """Load EU AI Act policy information."""

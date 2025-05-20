@@ -1,8 +1,9 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
+from typing import Dict, Any
 
-from api.routers import analyze_simple, policies, reports
+from api.routers import analyze
 from core.config import settings
 
 # Configure logging
@@ -29,21 +30,20 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(analyze_simple.router)
-app.include_router(policies.router)
-app.include_router(reports.router)
+app.include_router(analyze.router, prefix="/api/v1")
 
 @app.get("/")
-async def root():
+async def root() -> Dict[str, str]:
     """Health check endpoint."""
     return {"message": "AlignAI API is running"}
 
 @app.get("/health")
-async def health_check():
+async def health_check() -> Dict[str, Any]:
     """Health check endpoint with more details."""
     return {
         "status": "healthy",
         "api_version": app.version,
+        "service": "alignai-api"
     }
 
 if __name__ == "__main__":

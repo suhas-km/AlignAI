@@ -1,21 +1,29 @@
 import { Metadata } from 'next';
-import PromptAnalyzer from '@/components/analyzer/prompt-analyzer-fixed';
+import dynamic from 'next/dynamic';
+
+// Import the analyzer component with SSR disabled
+const SimplePromptAnalyzer = dynamic(
+  () => import('@/components/analyzer/simple-prompt-analyzer'),
+  { ssr: false }
+);
 
 export const metadata: Metadata = {
-  title: 'Prompt Analyzer - AlignAI',
-  description: 'Analyze prompts for AI compliance risks in real-time',
+  title: 'Text Analyzer - AlignAI',
+  description: 'Analyze text for bias, PII, and policy violations',
 };
 
 export default function AnalyzerPage() {
   return (
     <div className="container py-8">
       <div className="mb-8">
-        <h1 className="mb-2 text-3xl font-bold">Prompt Analyzer</h1>
+        <h1 className="mb-2 text-3xl font-bold">Text Analyzer</h1>
         <p className="text-gray-600 dark:text-gray-400">
-          Analyze your AI prompts for compliance risks in real-time
+          Analyze text for bias, personally identifiable information (PII), and policy violations
         </p>
       </div>
-      <PromptAnalyzer />
+      <div className="max-w-4xl mx-auto">
+        <SimplePromptAnalyzer />
+      </div>
     </div>
   );
 }

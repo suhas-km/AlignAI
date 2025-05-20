@@ -30,6 +30,7 @@ type AnalysisResponse = {
   token_risks: TokenRisk[];
   policy_matches: PolicyMatch[];
   overall_risk: OverallRisk;
+  recommendations: string[];
 };
 
 type AnalysisOptions = {
@@ -63,7 +64,7 @@ export default function PromptAnalyzer() {
     // Use HTTP endpoint instead of WebSocket for now
     console.log('Using HTTP endpoint for analysis');
     
-    // Prepare the request payload
+    // Prepare the request payload - match the backend schema exactly
     const payload = {
       text: prompt,
       options: {
@@ -72,6 +73,8 @@ export default function PromptAnalyzer() {
         analyze_policy: options.analyzePolicy,
       },
     };
+    
+    console.log('Sending payload to backend:', payload);
     
     // Make a fetch request to the HTTP endpoint
     fetch('http://localhost:8000/api/v1/analyze/prompt', {
@@ -125,6 +128,10 @@ export default function PromptAnalyzer() {
                 policy_violation: 0.7,
               },
             },
+            recommendations: [
+              'Consider using more gender-neutral language',
+              'Review relevant EU AI Act requirements for Article 10'
+            ],
           };
           
           setAnalysisResults(mockResponse);
