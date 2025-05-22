@@ -94,8 +94,8 @@ Model-Training/policy-detection/policy-model-weights/logs
 Model-Training/policy-detection/policy-model-weights/logs/*
 
 # dataset
-Model-Training/policy-detection/data
-Model-Training/policy-detection/data/*
+# Model-Training/policy-detection/data
+# Model-Training/policy-detection/data/*
 Model-Training/policy-detection/data/train.jsonl
 Model-Training/policy-detection/data/dev.jsonl
 Model-Training/policy-detection/data/test.jsonl
