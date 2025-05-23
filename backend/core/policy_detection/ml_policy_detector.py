@@ -1,11 +1,11 @@
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 import os
 import json
 import logging
 import torch
 import numpy as np
 from pathlib import Path
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, DistilBertConfig, DistilBertForSequenceClassification
 
 logger = logging.getLogger(__name__)
 
@@ -21,18 +21,21 @@ class MLPolicyDetector:
         """
         self.model = None
         self.tokenizer = None
-        self.id2label = None
-        self.label2id = None
+        self.model_config = {}
+        self.categories = []
+        self.severity_levels = []
+        self.articles = []
+        self.max_length = 512
         self.policy_info = {}
         
         # Set model directory
         if model_dir is None:
-            # Directly use the final_model path which we found contains the model files
-            self.model_dir = Path(__file__).parent.parent.parent / "models" / "policy_detection" / "final_model"
+            # Use the new policy_detection directory directly
+            self.model_dir = Path(__file__).parent.parent.parent / "models" / "policy_detection"
             
             # If not found, use the original training path as fallback
             if not self.model_dir.exists():
-                self.model_dir = Path("/Users/suhaskm/Desktop/EU AI Act/AlignAI/Model-Training/policy-detection/policy-model-weights")
+                self.model_dir = Path("/Users/suhaskm/Desktop/EU AI Act/AlignAI/Model-Training/policy-detection/models/policy_model")
         else:
             self.model_dir = Path(model_dir)
         
@@ -48,10 +51,6 @@ class MLPolicyDetector:
             True if model loaded successfully, False otherwise.
         """
         try:
-            # Make absolutely sure we're using the final_model directory
-            base_dir = Path(__file__).parent.parent.parent / "models" / "policy_detection" / "final_model"
-            self.model_dir = base_dir
-            
             logger.info(f"Loading policy detector model from {self.model_dir}")
             
             # Ensure the model directory exists
@@ -60,87 +59,191 @@ class MLPolicyDetector:
                 return False
                 
             # Check that required files exist
-            required_files = ["config.json", "model.safetensors", "tokenizer.json"]
+            required_files = ["config.json", "tokenizer.json"]
+            model_files = ["model.safetensors", "model_weights.bin", "pytorch_model.bin"]
+            
+            # Check for required configuration files
             for file in required_files:
                 if not (self.model_dir / file).exists():
                     logger.error(f"Required model file {file} not found in {self.model_dir}")
                     return False
             
+            # Check for at least one model weights file
+            model_file_exists = False
+            for file in model_files:
+                if (self.model_dir / file).exists():
+                    model_file_exists = True
+                    self.weights_file = file
+                    break
+            
+            if not model_file_exists:
+                logger.error(f"No model weights file found in {self.model_dir}")
+                return False
+            
             logger.info(f"Required files verified in {self.model_dir}")
-                    
-            # Load tokenizer and model with explicit path and local_files_only
+            
+            # Load the model configuration
+            try:
+                with open(self.model_dir / "config.json", "r") as f:
+                    self.model_config = json.load(f)
+                logger.info(f"Loaded custom model configuration")
+                
+                # Define labels from config or use defaults
+                self.categories = self.model_config.get("categories", [
+                    "transparency", 
+                    "data_governance", 
+                    "technical_robustness", 
+                    "risk_management", 
+                    "human_oversight", 
+                    "high_risk_systems",
+                    "record_keeping",
+                    "accuracy_robustness",
+                    "prohibited_practices"
+                ])
+                
+                self.severity_levels = self.model_config.get("severity_levels", [
+                    "low", 
+                    "medium", 
+                    "high", 
+                    "critical"
+                ])
+                
+                self.articles = self.model_config.get("articles", [
+                    "article_5", 
+                    "article_9", 
+                    "article_10", 
+                    "article_11", 
+                    "article_13", 
+                    "article_14", 
+                    "article_15", 
+                    "article_16", 
+                    "article_17", 
+                    "article_18", 
+                    "article_19", 
+                    "article_29"
+                ])
+                
+                self.max_length = self.model_config.get("max_length", 512)
+                
+            except Exception as e:
+                logger.error(f"Error loading custom model configuration: {str(e)}")
+                # Use default values if not found in config
+                self.categories = [
+                    "transparency", 
+                    "data_governance", 
+                    "technical_robustness", 
+                    "risk_management", 
+                    "human_oversight", 
+                    "high_risk_systems",
+                    "record_keeping",
+                    "accuracy_robustness",
+                    "prohibited_practices"
+                ]
+                self.severity_levels = ["low", "medium", "high", "critical"]
+                self.articles = [
+                    "article_5", 
+                    "article_9", 
+                    "article_10", 
+                    "article_11", 
+                    "article_13", 
+                    "article_14", 
+                    "article_15", 
+                    "article_16", 
+                    "article_17", 
+                    "article_18", 
+                    "article_19", 
+                    "article_29"
+                ]
+                self.max_length = 512
+            
+            # Load tokenizer
             logger.info(f"Loading tokenizer from {self.model_dir}")
             self.tokenizer = AutoTokenizer.from_pretrained(str(self.model_dir), local_files_only=True)
             
-            logger.info(f"Loading model from {self.model_dir}")
-            self.model = AutoModelForSequenceClassification.from_pretrained(str(self.model_dir), local_files_only=True)
+            # Create appropriate model configuration
+            logger.info(f"Configuring model architecture")
+            num_labels = 1 + len(self.categories) + len(self.severity_levels) + len(self.articles)
+            model_config = DistilBertConfig.from_pretrained(
+                "distilbert-base-uncased",
+                num_labels=num_labels,
+                problem_type="multi_label_classification"
+            )
             
-            # Try to load label mapping from label_mapping.json first
-            label_mapping_path = self.model_dir / "label_mapping.json"
-            if label_mapping_path.exists():
-                try:
-                    with open(label_mapping_path, "r") as f:
-                        label_mapping = json.load(f)
-                        # Convert the label mapping to the expected format
-                        self.id2label = {str(i): category for i, category in enumerate(label_mapping.keys(), 1)}
-                        self.id2label["0"] = "compliant"  # Add compliant class
-                        self.label2id = {v: str(k) for k, v in self.id2label.items()}
-                        logger.info(f"Loaded label mapping from {label_mapping_path}")
-                except Exception as e:
-                    logger.error(f"Error loading label mapping: {str(e)}")
-                    self._setup_default_labels()
+            # Initialize model with configuration
+            self.model = DistilBertForSequenceClassification(model_config)
+            
+            # Load model weights
+            if (self.model_dir / "model_weights.bin").exists():
+                logger.info(f"Loading weights from model_weights.bin")
+                self.model.load_state_dict(torch.load(str(self.model_dir / "model_weights.bin"), map_location="cpu"))
+            elif (self.model_dir / "pytorch_model.bin").exists():
+                logger.info(f"Loading weights from pytorch_model.bin")
+                self.model.load_state_dict(torch.load(str(self.model_dir / "pytorch_model.bin"), map_location="cpu"))
+            elif (self.model_dir / "model.safetensors").exists():
+                logger.info(f"Loading weights from model.safetensors")
+                self.model = DistilBertForSequenceClassification.from_pretrained(
+                    str(self.model_dir),
+                    config=model_config,
+                    local_files_only=True
+                )
             else:
-                logger.warning(f"Label mapping file not found at {label_mapping_path}")
-                self._setup_default_labels()
-                
-            logger.info("Policy detector model loaded successfully")
-            return True
-                
-        except Exception as e:
-            logger.error(f"Error loading policy detector model: {str(e)}")
-            return False
+                logger.error("No model weights file found")
+                return False
             
-    def _setup_default_labels(self):
-        """Set up default labels when no mapping file is found."""
-        logger.warning("Using default label mapping")
-        self.id2label = {"0": "compliant", "1": "non_compliant"}
-        self.label2id = {"compliant": "0", "non_compliant": "1"}
-    
+            # Set model to evaluation mode
+            self.model.eval()
+            
+            logger.info("Model loaded successfully")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error loading policy detection model: {str(e)}")
+            return False
+
     def _load_policy_info(self) -> None:
         """Load EU AI Act policy information."""
         try:
+            # Look for policy info file
             policy_info_path = Path(__file__).parent / "policy_info.json"
+            
             if policy_info_path.exists():
-                with open(policy_info_path, "r") as f:
+                with open(policy_info_path, 'r') as f:
                     self.policy_info = json.load(f)
+                logger.info(f"Loaded policy information from {policy_info_path}")
             else:
-                # Create default policy info
+                # Default policy information if file not found
                 self.policy_info = {
+                    "article_5": {
+                        "title": "Prohibited AI Practices",
+                        "summary": "AI systems that deploy subliminal techniques, exploit vulnerabilities, or engage in social scoring are prohibited."
+                    },
                     "article_10": {
-                        "title": "Data and data governance",
-                        "summary": "Ensuring appropriate data governance and management practices.",
-                        "risk_level": "high"
+                        "title": "Data and Data Governance",
+                        "summary": "Training, validation and testing data shall be subject to appropriate data governance and management practices."
+                    },
+                    "article_13": {
+                        "title": "Transparency and Information Provision",
+                        "summary": "High-risk AI systems shall be designed and developed to enable transparency and clear communication to users."
                     },
                     "article_15": {
-                        "title": "Accuracy, robustness and cybersecurity",
-                        "summary": "AI systems should be accurate, robust and secure.",
-                        "risk_level": "high"
+                        "title": "Accuracy, Robustness and Cybersecurity",
+                        "summary": "High-risk AI systems should be accurate, robust and secure throughout their lifecycle."
                     },
                     "article_17": {
-                        "title": "Risk management system",
-                        "summary": "Implementation of risk management systems for high-risk AI.",
-                        "risk_level": "high"
+                        "title": "Risk Management System",
+                        "summary": "A risk management system shall be established for high-risk AI systems."
                     }
                 }
-                # Save default policy info for future use
-                os.makedirs(os.path.dirname(policy_info_path), exist_ok=True)
-                with open(policy_info_path, "w") as f:
-                    json.dump(self.policy_info, f, indent=2)
-                
+                logger.info("Using default policy information")
         except Exception as e:
             logger.error(f"Error loading policy information: {str(e)}")
-            # Set default empty dict
-            self.policy_info = {}
+            # Set minimal default policy info if loading fails
+            self.policy_info = {
+                "article_10": {
+                    "title": "Data and Data Governance",
+                    "summary": "Data quality requirements"
+                }
+            }
     
     def detect_policy_violations(self, text: str) -> Dict[str, Any]:
         """Detect potential policy violations in text.
@@ -151,54 +254,111 @@ class MLPolicyDetector:
         Returns:
             Dict with prediction results
         """
-        if not self.model or not self.tokenizer:
-            logger.error("Policy detector model not loaded")
-            return {"is_compliant": True, "violations": [], "score": 0.0}
-        
         try:
-            # Tokenize input
-            inputs = self.tokenizer(text, return_tensors="pt", truncation=True, max_length=512, padding=True)
+            # Check if model is loaded
+            if self.model is None or self.tokenizer is None:
+                logger.error("Model or tokenizer not loaded. Cannot detect policy violations.")
+                return {"is_compliant": True, "violations": [], "compliance_score": 0.0}
             
-            # Get prediction
+            # Tokenize input text
+            inputs = self.tokenizer(text, return_tensors='pt', truncation=True, max_length=self.max_length)
+            
+            # Make prediction
             with torch.no_grad():
                 outputs = self.model(**inputs)
-                logits = outputs.logits
-                probabilities = torch.softmax(logits, dim=1).numpy()[0]
+                logits = outputs.logits[0].numpy()
+                
+                # Convert logits to probabilities using sigmoid for multi-label classification
+                probs = 1 / (1 + np.exp(-logits))
             
-            # Determine compliance (class 0 should be "compliant")
-            non_compliant_prob = float(probabilities[1])
-            is_compliant = non_compliant_prob <= 0.5
+            # Split predictions into separate tasks
+            # Format: [violation, categories, severity, articles]
             
-            # For simplicity, assume violations relate to common articles
-            # In a real implementation, this would use a more sophisticated approach
+            # For binary violation detection
+            violation_score = probs[0]
+            is_violation = violation_score > 0.5
+            
+            # For category classification (multi-class)
+            category_start = 1
+            category_end = category_start + len(self.categories)
+            category_scores = probs[category_start:category_end]
+            category_idx = np.argmax(category_scores)
+            category = self.categories[category_idx] if category_idx < len(self.categories) else "unknown"
+            category_confidence = float(category_scores[category_idx]) if category_idx < len(category_scores) else 0.0
+            
+            # For severity classification (multi-class)
+            severity_start = category_end
+            severity_end = severity_start + len(self.severity_levels)
+            severity_scores = probs[severity_start:severity_end]
+            severity_idx = np.argmax(severity_scores)
+            severity = self.severity_levels[severity_idx] if severity_idx < len(self.severity_levels) else "medium"
+            severity_confidence = float(severity_scores[severity_idx]) if severity_idx < len(severity_scores) else 0.0
+            
+            # For article prediction (multi-label)
+            article_start = severity_end
+            article_end = article_start + len(self.articles)
+            article_scores = probs[article_start:article_end]
+            article_predictions = article_scores > 0.5
+            
+            # Get predicted articles with scores
+            predicted_articles = []
+            for i, is_predicted in enumerate(article_predictions):
+                if is_predicted and i < len(self.articles):
+                    predicted_articles.append({
+                        "article_id": self.articles[i],
+                        "score": float(article_scores[i])
+                    })
+            
+            # Sort articles by score
+            predicted_articles.sort(key=lambda x: x["score"], reverse=True)
+            
+            # Format the compliance score (inverse of violation score)
+            compliance_score = (1.0 - violation_score) * 100
+            
+            # Format violations if detected
             violations = []
-            if not is_compliant:
-                # Identify most likely violated articles
-                # Here we're simplifying by using the top relevant articles from the policy_info
-                for article_id, info in self.policy_info.items():
-                    risk_level = info.get("risk_level", "medium")
-                    risk_score = non_compliant_prob * {
-                        "low": 0.7,
-                        "medium": 0.85,
-                        "high": 1.0
-                    }.get(risk_level, 0.85)
-                    
-                    # Only include if risk score is high enough
-                    if risk_score > 0.5:
-                        violations.append({
-                            "article_id": article_id,
-                            "title": info.get("title", article_id),
-                            "summary": info.get("summary", "Policy violation detected"),
-                            "risk_score": risk_score
-                        })
-            
-            # Sort violations by risk score (highest first)
-            violations.sort(key=lambda x: x["risk_score"], reverse=True)
+            if is_violation:
+                # Calculate risk level based on severity
+                risk_level = "high" if severity in ["critical", "high"] else "medium" if severity == "medium" else "low"
+                
+                # Format article references
+                article_refs = [article["article_id"] for article in predicted_articles]
+                article_ref_str = ", ".join(article_refs) if article_refs else "Unknown articles"
+                
+                # Get a more detailed category description
+                category_desc = {
+                    "transparency": "Transparency Requirements",
+                    "data_governance": "Data and Data Governance",
+                    "technical_robustness": "Technical Robustness and Security",
+                    "risk_management": "Risk Management System",
+                    "human_oversight": "Human Oversight",
+                    "high_risk_systems": "High-Risk AI Systems",
+                    "record_keeping": "Record-Keeping",
+                    "accuracy_robustness": "Accuracy and Robustness",
+                    "prohibited_practices": "Prohibited Practices"
+                }.get(category, category)
+                
+                # Create violation entry
+                violations.append({
+                    "article_id": article_refs[0] if article_refs else "Unknown",  # Primary article
+                    "title": category_desc,
+                    "severity": severity,
+                    "category": category,
+                    "summary": f"{severity.capitalize()} severity violation in {category_desc}. Related to {article_ref_str}.",
+                    "risk_score": float(violation_score),
+                    "risk_level": risk_level,
+                    "all_articles": article_refs
+                })
             
             return {
-                "is_compliant": is_compliant,
+                "is_compliant": not is_violation,
                 "violations": violations,
-                "compliance_score": (1.0 - non_compliant_prob) * 100  # Convert to percentage
+                "compliance_score": float(compliance_score),
+                "category": category,
+                "category_confidence": category_confidence,
+                "severity": severity,
+                "severity_confidence": severity_confidence,
+                "predicted_articles": predicted_articles
             }
             
         except Exception as e:
@@ -235,6 +395,10 @@ class MLPolicyDetector:
                 recommendations.append("Verify the accuracy, robustness, and security of AI systems.")
             elif "risk" in title.lower():
                 recommendations.append("Implement appropriate risk management procedures for high-risk AI systems.")
+            elif "transparency" in title.lower():
+                recommendations.append("Improve transparency and information provision to users.")
+            elif "oversight" in title.lower():
+                recommendations.append("Ensure appropriate human oversight for AI systems.")
             else:
                 recommendations.append(f"Review compliance with {article_id.upper()}: {title}.")
         
@@ -261,33 +425,73 @@ class MLPolicyDetector:
             "compliance_score": result["compliance_score"],
             "violations": result["violations"],
             "recommendations": recommendations,
-            "text": text
+            "text": text,
+            "category": result.get("category", ""),
+            "severity": result.get("severity", ""),
+            "predicted_articles": result.get("predicted_articles", [])
         }
         
         return analysis
     
     def format_for_api(self, analysis_result: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Format policy analysis results for the API response format.
+        """Format policy detection results for API response.
         
         Args:
-            analysis_result: Results from analyze_text
+            analysis_result: Results from policy detection
             
         Returns:
-            List of formatted policy match items for API response
+            List of formatted violations for API response
         """
-        policy_matches = []
+        formatted_results = []
         
-        if analysis_result["is_compliant"]:
-            return policy_matches
-        
-        # Format each violation as a policy match
-        for violation in analysis_result["violations"]:
-            policy_matches.append({
-                "policy_id": violation["article_id"],
-                "title": violation["title"],
-                "description": violation["summary"],
-                "match_score": violation["risk_score"],
-                "risk_level": "high" if violation["risk_score"] > 0.7 else "medium"
-            })
-        
-        return policy_matches
+        try:
+            # Extract violations from analysis result
+            violations = analysis_result.get("violations", [])
+            
+            # Format each violation for API
+            for violation in violations:
+                # Get article ID
+                article_id_str = violation.get("article_id", "unknown")
+                
+                # Extract article number if possible
+                if "article_" in article_id_str.lower():
+                    article_num = article_id_str.lower().replace("article_", "")
+                else:
+                    article_num = article_id_str
+                    
+                # Try to convert to int
+                try:
+                    article_num_int = int(article_num)
+                except ValueError:
+                    article_num_int = 0
+                
+                # Get all relevant articles
+                all_articles = violation.get("all_articles", [])
+                related_articles = ", ".join([art.replace("article_", "Article ") for art in all_articles]) if all_articles else f"Article {article_num}"
+                
+                # Get severity and risk level
+                severity = violation.get("severity", "medium")
+                risk_level = violation.get("risk_level", "medium")
+                
+                # Enhanced snippet with more details
+                category = violation.get("category", "")
+                title = violation.get("title", category)
+                
+                # Build enhanced text snippet
+                text_snippet = f"{severity.capitalize()} severity {risk_level} risk violation: {title}. Related to {related_articles}."
+                
+                formatted_results.append({
+                    "policy_id": article_num_int,
+                    "article": f"Article {article_num}".replace("Article article_", "Article "),  # Fix duplication
+                    "similarity_score": violation.get("risk_score", 0.6),  # Use risk score as similarity
+                    "text_snippet": text_snippet,
+                    "severity": severity,
+                    "risk_level": risk_level,
+                    "category": category,
+                    "related_articles": all_articles
+                })
+                
+        except Exception as e:
+            logger.error(f"Error formatting policy results for API: {str(e)}")
+            
+        return formatted_results
