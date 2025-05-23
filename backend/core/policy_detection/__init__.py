@@ -24,7 +24,7 @@ def check_policy_violations(text: str) -> Dict[str, Any]:
         "has_violation": has_violation,
         "violations": [
             {
-                "article": item.get("article", ""),
+                "article": item.get("article", "").replace("Article Article", "Article"),
                 "score": item.get("similarity_score", 0),
                 "text": item.get("text_snippet", "")
             } for item in policy_matches
@@ -32,7 +32,7 @@ def check_policy_violations(text: str) -> Dict[str, Any]:
         "overall_score": max([item.get('similarity_score', 0) for item in policy_matches] or [0]),
         "relevant_policies": [
             {
-                "article": item.get("article", ""),
+                "article": item.get("article", "").replace("Article Article", "Article"),
                 "text": item.get("text_snippet", "")
             } for item in policy_matches
         ]
