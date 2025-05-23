@@ -1,0 +1,21 @@
+{
+  "model_name": "distilbert-base-uncased",
+  "task": "binary_bias_classification",
+  "evaluation_metrics": {
+    "eval_loss": 1.724599496810697e-05,
+    "eval_accuracy": 1.0,
+    "eval_f1": 1.0,
+    "eval_precision": 1.0,
+    "eval_recall": 1.0,
+    "eval_runtime": 8.8995,
+    "eval_samples_per_second": 116.86,
+    "eval_steps_per_second": 7.304,
+    "epoch": 5.0
+  },
+  "max_sequence_length": 256,
+  "training_parameters": {
+    "epochs": 5,
+    "batch_size": 16,
+    "learning_rate": 2e-05
+  }
+}

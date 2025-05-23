@@ -35,7 +35,7 @@ class MLPolicyDetector:
             
             # If not found, use the original training path as fallback
             if not self.model_dir.exists():
-                self.model_dir = Path("/Users/suhaskm/Desktop/EU AI Act/AlignAI/Model-Training/policy-detection/models/policy_model")
+                self.model_dir = Path("/AlignAI/Model-Training/policy-detection/models/policy_model")
         else:
             self.model_dir = Path(model_dir)
         

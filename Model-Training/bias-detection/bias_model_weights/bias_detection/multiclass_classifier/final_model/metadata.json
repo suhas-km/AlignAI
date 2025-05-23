@@ -1,0 +1,31 @@
+{
+  "model_name": "distilbert-base-uncased",
+  "task": "multiclass_bias_classification",
+  "evaluation_metrics": {
+    "eval_loss": 0.15119142830371857,
+    "eval_accuracy": 0.9432692307692307,
+    "eval_f1": 0.9435214459199494,
+    "eval_precision": 0.9463696453787214,
+    "eval_recall": 0.9432692307692307,
+    "eval_runtime": 8.8785,
+    "eval_samples_per_second": 117.137,
+    "eval_steps_per_second": 7.321,
+    "epoch": 5.0
+  },
+  "max_sequence_length": 256,
+  "bias_categories": {
+    "0": "AGE",
+    "1": "DISABILITY",
+    "2": "ETHNICITY",
+    "3": "GENDER",
+    "4": "RELIGION",
+    "5": "SEXUAL_ORIENTATION",
+    "6": "SOCIOECONOMIC",
+    "7": "NONE"
+  },
+  "training_parameters": {
+    "epochs": 5,
+    "batch_size": 16,
+    "learning_rate": 2e-05
+  }
+}

@@ -37,7 +37,7 @@ class MLBiasDetector:
                 self.model_dir = base_dir
             # If not found, use the original training path
             if not self.model_dir.exists():
-                self.model_dir = Path("/Users/suhaskm/Desktop/EU AI Act/AlignAI/Model-Training/bias-detection/models/bias_detection")
+                self.model_dir = Path("/AlignAI/Model-Training/bias-detection/models/bias_detection")
         else:
             self.model_dir = Path(model_dir)
         

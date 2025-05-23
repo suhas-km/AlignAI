@@ -16,6 +16,10 @@ type PolicyMatch = {
   article: string;
   similarity_score: number;
   text_snippet: string;
+  severity?: string;  // low, medium, high, critical
+  risk_level?: string;  // low, medium, high
+  category?: string;  // transparency, data_governance, etc.
+  related_articles?: string[];  // array of related article IDs
 };
 
 type OverallRisk = {
@@ -122,22 +126,72 @@ export default function AnalysisResults({ results }: AnalysisResultsProps) {
       {/* Policy Matches */}
       {results.policy_matches.length > 0 && (
         <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
-          <h3 className="mb-3 text-lg font-semibold">Relevant Policies</h3>
-          <div className="max-h-60 overflow-y-auto space-y-3">
+          <h3 className="mb-3 text-lg font-semibold">EU AI Act Compliance Issues</h3>
+          <div className="max-h-80 overflow-y-auto space-y-4">
             {results.policy_matches.map((match) => (
               <div 
                 key={`policy-${match.policy_id}`}
-                className="rounded-md border border-gray-300 p-3 dark:border-gray-700"
+                className={`rounded-md border p-4 ${match.severity === 'critical' ? 'border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-900/20' : 
+                match.severity === 'high' ? 'border-orange-300 bg-orange-50 dark:border-orange-800 dark:bg-orange-900/20' : 
+                match.severity === 'medium' ? 'border-yellow-300 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-900/20' : 
+                'border-blue-300 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20'}`}
               >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-medium">{match.article}</span>
-                  <span className="text-sm text-gray-500">
-                    Match: {formatRiskScore(match.similarity_score)}
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{match.article}</span>
+                    {match.severity && (
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium
+                        ${match.severity === 'critical' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' : 
+                        match.severity === 'high' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300' : 
+                        match.severity === 'medium' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' : 
+                        'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'}`}
+                      >
+                        {match.severity.charAt(0).toUpperCase() + match.severity.slice(1)} Severity
+                      </span>
+                    )}
+                    {match.risk_level && (
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium
+                        ${match.risk_level === 'high' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' : 
+                        match.risk_level === 'medium' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' : 
+                        'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'}`}
+                      >
+                        {match.risk_level.charAt(0).toUpperCase() + match.risk_level.slice(1)} Risk
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                    Confidence: {formatRiskScore(match.similarity_score)}
                   </span>
                 </div>
-                <p className="text-sm text-gray-700 dark:text-gray-300">
+                
+                {match.category && (
+                  <div className="mb-2">
+                    <span className="text-sm font-medium">Category: </span>
+                    <span className="text-sm">
+                      {match.category.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                    </span>
+                  </div>
+                )}
+                
+                <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
                   {match.text_snippet}
                 </p>
+                
+                {match.related_articles && match.related_articles.length > 0 && (
+                  <div className="mt-2">
+                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Related Articles: </span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {match.related_articles.map((article, idx) => (
+                        <span 
+                          key={`related-${match.policy_id}-${idx}`}
+                          className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300"
+                        >
+                          {article.replace('article_', 'Article ')}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>

@@ -1,0 +1,43 @@
+{
+  "model_name": "distilbert-base-uncased",
+  "task": "pii_detection",
+  "evaluation_metrics": {
+    "eval_loss": 0.1942383050918579,
+    "eval_accuracy": 0.967688439522816,
+    "eval_f1": 0.9647327244090087,
+    "eval_runtime": 5.1654,
+    "eval_samples_per_second": 204.05,
+    "eval_steps_per_second": 12.777,
+    "epoch": 5.0
+  },
+  "max_sequence_length": 128,
+  "id2tag": {
+    "0": "O",
+    "1": "PII-DATE",
+    "2": "PII-EMAIL",
+    "3": "PII-FINANCIAL",
+    "4": "PII-GOVERNMENT_ID",
+    "5": "PII-IP_ADDRESS",
+    "6": "PII-LOCATION",
+    "7": "PII-ORGANIZATION",
+    "8": "PII-PERSON",
+    "9": "PII-PHONE"
+  },
+  "tag2id": {
+    "O": 0,
+    "PII-DATE": 1,
+    "PII-EMAIL": 2,
+    "PII-FINANCIAL": 3,
+    "PII-GOVERNMENT_ID": 4,
+    "PII-IP_ADDRESS": 5,
+    "PII-LOCATION": 6,
+    "PII-ORGANIZATION": 7,
+    "PII-PERSON": 8,
+    "PII-PHONE": 9
+  },
+  "training_parameters": {
+    "epochs": 5,
+    "batch_size": 16,
+    "learning_rate": 5e-05
+  }
+}
