@@ -166,3 +166,31 @@ backend/models/pII_detection/models/pii_detection/checkpoint-1130/config.json
 
 # backend/models/policy_detection/models/policy_detection/checkpoint-1000/config.json
 backend/models/policy_detection/models/policy_detection/checkpoint-1000/config.json
+
+# Additional patterns to ensure large model files aren't committed
+*.safetensors
+*.pt
+*.pth
+*.bin
+*.h5
+**/checkpoint-*/model.*
+**/checkpoint-*/optimizer.*
+**/checkpoint-*/scheduler.*
+**/checkpoint-*/rng_state.*
+**/checkpoint-*/training_args.*
+
+# Log files
+*.log
+**/logs/*
+
+# Temporary files
+*.tmp
+*.temp
+.DS_Store
+
+# Keep config files and tokenizer files
+!**/config.json
+!**/special_tokens_map.json
+!**/tokenizer_config.json
+!**/vocab.txt
+!**/tokenizer.json
