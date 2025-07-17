@@ -50,6 +50,8 @@ Training data includes diverse examples of personal information formatted in var
 - Trained on the full text of the EU AI Act, broken down into semantic units
 - Vectorized using sentence transformers to enable semantic similarity matching
 - Includes mechanisms to map detected issues to specific articles and clauses
+- **Model**: [EU AI Act Policy Model on Hugging Face](https://huggingface.co/suhas-km/eu-ai-act-policy-model)
+- **Dataset**: [EU AI Act Flagged Dataset on Hugging Face](https://huggingface.co/datasets/suhas-km/EU-AI-Act-Flagged)
 
 ## Technical Architecture
 
