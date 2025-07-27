@@ -19,6 +19,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { AnalysisProgress } from '@/components/ui/analysis-progress';
 
 // Reusing TokenRisk type from the API client
 
@@ -305,6 +306,11 @@ export default function SimplePromptAnalyzer() {
           </AlertDescription>
         </Alert>
       )}
+
+      <AnalysisProgress 
+        isAnalyzing={isAnalyzing} 
+        analysisOptions={analysisOptions} 
+      />
 
       {result && (
         <Card>
