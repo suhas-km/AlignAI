@@ -15,6 +15,7 @@ AlignAI is a specialized tool designed to help developers and organizations eval
 - **Policy Compliance Verification**: Mapping of input text against relevant EU AI Act regulations with specific article references
 - **Visual Risk Indicators**: Color-coded indicators and percentage scores to quickly identify areas of concern
 - **Detailed Explanations**: Context-specific explanations of detected issues to facilitate understanding and correction
+- **Microservice**: Easy to Manage dependencies and can run on its own infrastructure
 
 - **Multi-Dimensional Analysis**: Comprehensive examination of prompts across three critical dimensions: bias detection, PII identification, and policy compliance
 - **Risk Assessment**: Dynamic risk scoring system that quantifies concerns with confidence levels to prioritize remediation efforts
