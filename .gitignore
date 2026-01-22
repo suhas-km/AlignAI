@@ -194,3 +194,4 @@ backend/models/policy_detection/models/policy_detection/checkpoint-1000/config.j
 !**/tokenizer_config.json
 !**/vocab.txt
 !**/tokenizer.json
+eu-ai-act-onnx-export/

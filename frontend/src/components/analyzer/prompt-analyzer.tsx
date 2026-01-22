@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import AnalysisResults from './analysis-results';
 import RiskHighlighter from './risk-highlighter';
 import { AlertCircleIcon, ShieldIcon } from '@/components/ui/icons';
+import { analyzeText } from '@/lib/api';
 
 // Types for our analysis data
 type TokenRisk = {
@@ -30,6 +31,7 @@ type AnalysisResponse = {
   token_risks: TokenRisk[];
   policy_matches: PolicyMatch[];
   overall_risk: OverallRisk;
+  recommendations: string[];
 };
 
 type AnalysisOptions = {
@@ -44,177 +46,63 @@ export default function PromptAnalyzer() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResults, setAnalysisResults] = useState<AnalysisResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [modelStatus, setModelStatus] = useState<string>('');
   const [options, setOptions] = useState<AnalysisOptions>({
     analyzeBias: true,
     analyzePII: true,
     analyzePolicy: true,
   });
-  const [prompt, setPrompt] = useState('');
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisResults, setAnalysisResults] = useState<AnalysisResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [options, setOptions] = useState({
-    analyzeBias: true,
-    analyzePII: true,
-    analyzePolicy: true,
-  });
-  const wsRef = useRef<WebSocket | null>(null);
   
-  // Set up WebSocket connection
-  useEffect(() => {
-    // Define WebSocket URL with explicit protocol, host, and port
-    // We're hardcoding it for testing since we know our backend is on port 8000
-    const wsUrl = 'ws://localhost:8000/api/v1/analyze/prompt';
-    console.log('Attempting to connect to WebSocket at:', wsUrl);
-    
-    const connectWs = () => {
-      try {
-        // Close existing connection if any
-        if (wsRef.current) {
-          wsRef.current.close();
-        }
-        
-        // Create new connection
-        const ws = new WebSocket(wsUrl);
-        
-        ws.onopen = () => {
-          console.log('WebSocket connected successfully');
-          setError(null);
-        };
-        
-        ws.onmessage = (event) => {
-          try {
-            console.log('Received WebSocket message:', event.data);
-            const data = JSON.parse(event.data) as AnalysisResponse;
-            setAnalysisResults(data);
-            setIsAnalyzing(false);
-          } catch (e) {
-            console.error('Error parsing WebSocket message:', e);
-            setError('Failed to parse analysis results');
-            setIsAnalyzing(false);
-          }
-        };
-        
-        ws.onerror = (e) => {
-          console.error('WebSocket error:', e);
-          setError('Connection error with WebSocket. We will use fallback HTTP API.');
-          setIsAnalyzing(false);
-          // Implement HTTP fallback for robustness
-          useFallbackHttpApi();
-        };
-        
-        ws.onclose = (e) => {
-          console.log('WebSocket disconnected:', e.code, e.reason);
-          if (e.code !== 1000) { // 1000 is normal closure
-            setError('WebSocket connection closed unexpectedly. Using HTTP fallback.');
-          }
-        };
-        
-        wsRef.current = ws;
-      } catch (error) {
-        console.error('Error setting up WebSocket:', error);
-        setError('Failed to create WebSocket connection. Using fallback HTTP API.');
-      }
-    };
-    
-    // Attempt to connect
-    connectWs();
-    
-    // Cleanup on unmount
-    return () => {
-      if (wsRef.current) {
-        wsRef.current.close(1000, 'Component unmounting');
-      }
-    };
-  }, []);
-  
-  // Fallback HTTP API function
-  const useFallbackHttpApi = () => {
-    console.log('Using fallback HTTP API');
-    // This would normally make a fetch request to the REST endpoint
-    // For now, we'll just use mock data
-  };
-  
-  // Analysis function
-  const analyzePrompt = () => {
+  // Analysis function using the unified API (supports both local ONNX and backend)
+  const analyzePrompt = async () => {
     if (!prompt.trim()) {
       return;
     }
     
     setIsAnalyzing(true);
     setError(null);
+    setModelStatus('Analyzing... (first run may take 10-30s to download model)');
     console.log('Analyzing prompt:', prompt.substring(0, 50) + '...');
     
-    // Use HTTP endpoint instead of WebSocket for now
-    console.log('Using HTTP endpoint for analysis');
-    
-    // Prepare the request payload
-    const payload = {
-      text: prompt,
-      options: {
+    try {
+      // Use the unified analyzeText API which handles both local ONNX and backend
+      const result = await analyzeText(prompt, {
         analyze_bias: options.analyzeBias,
         analyze_pii: options.analyzePII,
         analyze_policy: options.analyzePolicy,
-      },
-    };
-    
-    // Make a fetch request to the HTTP endpoint
-    fetch('http://localhost:8000/api/v1/analyze/prompt', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
-        }
-        return response.json();
-      })
-      .then(data => {
-        console.log('Analysis response:', data);
-        setAnalysisResults(data);
-        setIsAnalyzing(false);
-      })
-      .catch(error => {
-        console.error('Error with HTTP analysis:', error);
-        setError(`HTTP request failed: ${error.message}`);
-        setIsAnalyzing(false);
-        
-        // Fallback to mock data if HTTP fails
-        console.log('Using mock data as final fallback');
-        setTimeout(() => {
-          const mockResponse: AnalysisResponse = {
-            token_risks: [
-              {
-                start: 10,
-                end: 15,
-                risk_score: 0.8,
-                risk_type: 'bias',
-                explanation: 'Gender bias detected',
-              },
-            ],
-            policy_matches: [
-              {
-                policy_id: 123,
-                article: 'Article 10',
-                similarity_score: 0.85,
-                text_snippet: 'Data quality and transparency requirements...',
-              },
-            ],
-            overall_risk: {
-              score: 0.75,
-              categories: {
-                bias: 0.8,
-                policy_violation: 0.7,
-              },
-            },
-          };
-          
-          setAnalysisResults(mockResponse);
-          setIsAnalyzing(false);
       });
+      
+      console.log('Analysis result:', result);
+      
+      // Convert to AnalysisResponse format
+      const analysisResponse: AnalysisResponse = {
+        token_risks: result.token_risks || [],
+        policy_matches: result.relevant_policies?.map((p, i) => ({
+          policy_id: i,
+          article: p.article,
+          similarity_score: result.overall_risk?.categories?.policy_violation || 0,
+          text_snippet: p.text,
+        })) || [],
+        overall_risk: {
+          score: result.overall_risk?.score || 0,
+          categories: Object.fromEntries(
+            Object.entries(result.overall_risk?.categories || {})
+              .filter(([_, v]) => v !== undefined)
+              .map(([k, v]) => [k, v as number])
+          ) as Record<string, number>,
+        },
+        recommendations: result.recommendations || [],
+      };
+      
+      setAnalysisResults(analysisResponse);
+      setModelStatus('');
+    } catch (err) {
+      console.error('Analysis error:', err);
+      setError(err instanceof Error ? err.message : 'Analysis failed');
+      setModelStatus('');
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   return (
@@ -338,6 +226,4 @@ export default function PromptAnalyzer() {
       </div>
     </div>
   );
-};
-
-export default PromptAnalyzer;
+}

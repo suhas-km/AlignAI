@@ -111,73 +111,56 @@ export default function SimplePromptAnalyzer() {
     setResult(null);
 
     try {
-      // Direct API call to the backend service
-      const backendUrl = 'http://localhost:8000/api/v1/analyze/text';
-      console.log('Calling backend at:', backendUrl);
+      // Use the unified analyzeText API (handles both local ONNX and backend)
+      console.log('Analyzing with unified API...');
       console.log('Analysis options:', analysisOptions);
       
-      // Prepare the payload
-      const payload = {
-        text: prompt,
-        options: {
-          analyze_bias: analysisOptions.analyze_bias,
-          analyze_pii: analysisOptions.analyze_pii,
-          analyze_policy: analysisOptions.analyze_policy,
-          language: analysisOptions.language || 'en',
-          threshold: analysisOptions.threshold || 0.7
-        }
-      };
-      
-      // Make the API call directly to the backend
-      const response = await fetch(backendUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+      const responseData = await analyzeText(prompt, {
+        analyze_bias: analysisOptions.analyze_bias,
+        analyze_pii: analysisOptions.analyze_pii,
+        analyze_policy: analysisOptions.analyze_policy,
+        language: analysisOptions.language || 'en',
+        threshold: analysisOptions.threshold || 0.7
       });
 
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
+      console.log('Analysis response:', responseData);
 
-      const responseData = await response.json();
-      console.log('API response:', responseData);
-
-      // Calculate risk scores from the backend response
+      // Calculate risk scores from the response
       let biasScore = 0;
       let piiScore = 0;
       let policyScore = 0;
 
       if (responseData.analysis) {
-        if (responseData.analysis.bias) {
-          biasScore = responseData.analysis.bias.overall_score || 0;
+        if (responseData.analysis.bias && typeof responseData.analysis.bias === 'object' && 'overall_score' in responseData.analysis.bias) {
+          biasScore = (responseData.analysis.bias as { overall_score?: number }).overall_score || 0;
         }
         
-        if (responseData.analysis.pii) {
-          piiScore = responseData.analysis.pii.overall_score || 0;
+        if (responseData.analysis.pii && typeof responseData.analysis.pii === 'object' && 'overall_score' in responseData.analysis.pii) {
+          piiScore = (responseData.analysis.pii as { overall_score?: number }).overall_score || 0;
         }
         
-        if (responseData.analysis.policy) {
-          policyScore = responseData.analysis.policy.overall_score || 0;
+        if (responseData.analysis.policy && typeof responseData.analysis.policy === 'object' && 'overall_score' in responseData.analysis.policy) {
+          policyScore = (responseData.analysis.policy as { overall_score?: number }).overall_score || 0;
         }
       }
 
-      // Calculate overall score as the maximum of the three component scores
-      const overallScore = Math.max(biasScore, piiScore, policyScore);
+      // Use response overall_risk if available, otherwise calculate
+      const overallScore = responseData.overall_risk?.score ?? Math.max(biasScore, piiScore, policyScore);
 
       // Create the result object with proper structure
       const analysisResult: AnalysisResult = {
-        text: responseData.text,
-        token_risks: [],
+        text: responseData.text || prompt,
+        token_risks: responseData.token_risks || [],
         overall_risk: {
           score: overallScore,
           categories: {
-            bias: biasScore,
-            pii: piiScore,
-            policy_violation: policyScore
+            bias: responseData.overall_risk?.categories?.bias ?? biasScore,
+            pii: responseData.overall_risk?.categories?.pii ?? piiScore,
+            policy_violation: responseData.overall_risk?.categories?.policy_violation ?? policyScore
           }
         },
-        relevant_policies: [],
-        recommendations: [],
+        relevant_policies: responseData.relevant_policies || [],
+        recommendations: responseData.recommendations || [],
         warnings: responseData.warnings || [],
         is_safe: responseData.is_safe !== false,
         analysis: {
